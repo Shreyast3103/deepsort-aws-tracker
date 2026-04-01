@@ -3,3 +3,4 @@ numpy
 onnxruntime
 scipy
 flask
+boto3
