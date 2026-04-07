@@ -55,7 +55,7 @@ if not logger.handlers:
     try:
         cw_handler = watchtower.CloudWatchLogHandler(
             log_group_name=CW_LOG_GROUP,
-            log_stream_name="flask-app",
+            log_stream_name=f"run-{uuid.uuid4()}",
             boto3_client=logs_client,
         )
         cw_handler.setFormatter(formatter)
@@ -130,6 +130,7 @@ def upload():
     filepath = os.path.join(UPLOAD_FOLDER, unique_name)
     file.save(filepath)
 
+    logger.info("=== Upload Received ===")
     logger.info(f"Processing: {filepath}")
     put_metric("VideoUploads", 1)
 
@@ -157,11 +158,12 @@ def upload():
     if not os.path.exists(MODEL_YOLO) or not os.path.exists(MODEL_REID):
         return "Model missing"
 
-    logger.info("Models ready")
+    logger.info("=== Models Ready ===")
 
     # -------------------------------
     # Run YOLO + DeepSORT
     # -------------------------------
+    logger.info("=== Processing Started ===")
     process = subprocess.Popen(
         ["python", "-u", "src/yolo_deepsort.py", filepath, MODEL_YOLO, MODEL_REID],
         stdout=subprocess.PIPE,
@@ -175,12 +177,18 @@ def upload():
         logger.info(line.strip())
 
     return_code = process.wait()
-
+    logger.info("=== Processing Completed ===")
+    
     if return_code != 0:
+        logger.error("Processing failed")
+        put_metric("ProcessingFailure", 1)
         return "Processing failed"
 
+    # SUCCESS CASE
+    put_metric("ProcessingSuccess", 1)
+
     duration = time.time() - start_time
-    put_metric("ProcessingTime", duration)
+    put_metric("ProcessingTimeSeconds", duration, "Seconds")
 
     # -------------------------------
     # Get output files
