@@ -17,7 +17,7 @@ app = Flask(__name__)
 # -------------------------------
 BASE_DIR = os.getcwd()
 UPLOAD_FOLDER = os.path.join(BASE_DIR, "uploads")
-OUTPUT_FOLDER = os.path.join(BASE_DIR, "outputs")
+OUTPUT_FOLDER = os.path.join(BASE_DIR, "output")
 MODEL_DIR = os.path.join(BASE_DIR, "models")
 os.makedirs(MODEL_DIR, exist_ok=True)
 
@@ -162,26 +162,25 @@ def upload():
     logger.info("Models ready for inference")
 
     try:
-        result = subprocess.run(
-            [
-                "python",
-                "src/yolo_deepsort.py",
-                filepath,
-                MODEL_YOLO,
-                MODEL_REID,
-            ],
-            capture_output=True,
+        process = subprocess.Popen(
+            ["python", "src/yolo_deepsort.py", filepath, MODEL_YOLO, MODEL_REID],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
             text=True,
-            timeout=600
+            bufsize=1
         )
+
+        # LIVE PRINT STREAMING
+        for line in process.stdout:
+            print(line, end="")        # prints in EC2 terminal
+            logger.info(line.strip())  # sends to CloudWatch
+
+        process.wait()
     except subprocess.TimeoutExpired:
         logger.error("Processing timed out.")
         put_metric("ProcessingTimeout", 1)
         return "Processing timed out."
 
-    logger.info(result.stdout)
-    if result.stderr:
-        logger.error(result.stderr)
 
     if result.returncode != 0:
         put_metric("ProcessingFailure", 1)
