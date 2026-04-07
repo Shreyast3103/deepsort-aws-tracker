@@ -26,7 +26,7 @@
         {% endif %}
     </div>
 
-    <!-- 📊 Metrics Section -->
+    <!-- 📊 Metrics -->
     <div class="card bg-secondary p-4 mb-4">
         <h4 class="mb-3">📊 Performance Metrics</h4>
 
@@ -43,7 +43,7 @@
         {% endif %}
     </div>
 
-    <!-- 🧠 Insights Section -->
+    <!-- 🧠 Insights -->
     <div class="card bg-secondary p-4 mb-4">
         <h4 class="mb-3">🧠 Key Insights</h4>
         <ul class="text-start">
@@ -65,75 +65,105 @@
         </ul>
     </div>
 
-    <!-- 📈 Graph Section -->
+    <!-- 📈 Graph 1 -->
     <div class="card bg-secondary p-4 mb-4">
-        <h4 class="mb-3">📈 Performance Trend</h4>
+        <h4 class="mb-3">📈 Frame Processing Time</h4>
         <canvas id="frameChart"></canvas>
     </div>
 
-    <!-- 📂 Download Section -->
+    <!-- 📊 Graph 2 -->
+    <div class="card bg-secondary p-4 mb-4">
+        <h4 class="mb-3">📊 Tracker Count Over Time</h4>
+        <canvas id="trackerChart"></canvas>
+    </div>
+
+    <!-- 📂 Downloads -->
     {% if s3_links %}
     <div class="card bg-secondary p-4 mb-4">
         <h4 class="mb-3">📂 Download Files</h4>
 
         {% if s3_links.timings %}
-            <a href="{{ s3_links.timings }}"
-               class="btn btn-info m-1"
-               target="_blank">
-               ⬇ Download Timings
+            <a href="{{ s3_links.timings }}" class="btn btn-info m-1" target="_blank">
+                ⬇ Download Timings
             </a>
         {% endif %}
 
         {% if s3_links.debug_log %}
-            <a href="{{ s3_links.debug_log }}"
-               class="btn btn-warning m-1"
-               target="_blank">
-               ⬇ Download Debug Log
+            <a href="{{ s3_links.debug_log }}" class="btn btn-warning m-1" target="_blank">
+                ⬇ Download Debug Log
             </a>
         {% endif %}
     </div>
     {% endif %}
 
-    <!-- ⬅ Back Button -->
+    <!-- ⬅ Back -->
     <a href="/" class="btn btn-warning">⬅ Process Another Video</a>
 
 </div>
 
-<!-- 📊 Chart Script -->
-<script>
-const ctx = document.getElementById('frameChart');
+<!-- ========================= -->
+<!-- 📊 CHART SCRIPTS -->
+<!-- ========================= -->
 
-new Chart(ctx, {
-    type: 'line',
-    data: {
-        labels: {{ frame_numbers | safe }},
-        datasets: [{
-            label: 'Frame Time (s)',
-            data: {{ frame_times | safe }},
-            borderWidth: 2,
-            tension: 0.3,
-            fill: true
-        }]
-    },
-    options: {
-        responsive: true,
-        plugins: {
-            legend: {
-                labels: {
-                    color: "white"
-                }
-            }
+<script>
+const frameNumbers = {{ frame_numbers | tojson }};
+const frameTimes = {{ frame_times | tojson }};
+const trackerCounts = {{ tracker_counts | tojson }};
+
+// Only run if data exists
+if (frameNumbers.length > 0) {
+
+    // 📈 Graph 1: Frame Time
+    new Chart(document.getElementById('frameChart'), {
+        type: 'line',
+        data: {
+            labels: frameNumbers,
+            datasets: [{
+                label: 'Frame Time (s)',
+                data: frameTimes,
+                borderWidth: 2,
+                tension: 0.3,
+                fill: true
+            }]
         },
-        scales: {
-            x: {
-                ticks: { color: "white" }
+        options: {
+            responsive: true,
+            plugins: {
+                legend: { labels: { color: "white" } }
             },
-            y: {
-                ticks: { color: "white" }
+            scales: {
+                x: { ticks: { color: "white" } },
+                y: { ticks: { color: "white" } }
             }
         }
-    }
-});
+    });
+
+    // 📊 Graph 2: Tracker Count
+    new Chart(document.getElementById('trackerChart'), {
+        type: 'line',
+        data: {
+            labels: frameNumbers,
+            datasets: [{
+                label: 'Active Trackers',
+                data: trackerCounts,
+                borderWidth: 2,
+                tension: 0.3,
+                fill: true
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: { labels: { color: "white" } }
+            },
+            scales: {
+                x: { ticks: { color: "white" } },
+                y: { ticks: { color: "white" } }
+            }
+        }
+    });
+
+}
 </script>
 
 </body>
