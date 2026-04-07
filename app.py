@@ -220,40 +220,11 @@ def upload():
                     metrics[k.strip()] = v.strip()
 
     # -------------------------------
-    # Graph data (REAL from debug log)
+    # Graph data (dummy for now)
     # -------------------------------
-    frame_numbers = []
-    frame_times = []
-    tracker_counts = []
+    frame_numbers = list(range(1, 50))
+    frame_times = [0.1 + (i % 5) * 0.01 for i in frame_numbers]
 
-    if debug_files:
-        debug_path = os.path.join(OUTPUT_FOLDER, debug_files[0])
-
-        import csv
-        frame_tracker_map = {}
-
-        with open(debug_path, "r") as f:
-            reader = csv.DictReader(f)
-
-            for row in reader:
-                try:
-                    frame = int(row["frame"])
-                    
-                    # count trackers per frame
-                    if frame not in frame_tracker_map:
-                        frame_tracker_map[frame] = 0
-                    frame_tracker_map[frame] += 1
-
-                except:
-                    pass
-
-        # convert to lists
-        frame_numbers = sorted(frame_tracker_map.keys())
-        tracker_counts = [frame_tracker_map[f] for f in frame_numbers]
-
-        # dummy frame times (until we log real ones)
-        frame_times = [0.1 for _ in frame_numbers]
-        
     # -------------------------------
     # Upload outputs
     # -------------------------------
@@ -300,8 +271,7 @@ def upload():
         metrics=metrics,
         s3_links=s3_links,
         frame_numbers=frame_numbers,
-        frame_times=frame_times,
-        tracker_counts=tracker_counts
+        frame_times=frame_times
     )
 
 # -------------------------------

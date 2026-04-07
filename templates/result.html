@@ -106,21 +106,16 @@
 <!-- ========================= -->
 
 <script>
-const frameNumbers = {{ frame_numbers | tojson }};
-const frameTimes = {{ frame_times | tojson }};
-const trackerCounts = {{ tracker_counts | tojson }};
+if ({{ frame_numbers | length }} > 0) {
+    const ctx = document.getElementById('frameChart');
 
-// Only run if data exists
-if (frameNumbers.length > 0) {
-
-    // 📈 Graph 1: Frame Time
-    new Chart(document.getElementById('frameChart'), {
+    new Chart(ctx, {
         type: 'line',
         data: {
-            labels: frameNumbers,
+            labels: {{ frame_numbers | safe }},
             datasets: [{
                 label: 'Frame Time (s)',
-                data: frameTimes,
+                data: {{ frame_times | safe }},
                 borderWidth: 2,
                 tension: 0.3,
                 fill: true
@@ -137,15 +132,20 @@ if (frameNumbers.length > 0) {
             }
         }
     });
+}
+</script>
 
-    // 📊 Graph 2: Tracker Count
-    new Chart(document.getElementById('trackerChart'), {
+<script>
+if ({{ frame_numbers | length }} > 0) {
+    const ctx2 = document.getElementById('trackerChart');
+
+    new Chart(ctx2, {
         type: 'line',
         data: {
-            labels: frameNumbers,
+            labels: {{ frame_numbers | safe }},
             datasets: [{
                 label: 'Active Trackers',
-                data: trackerCounts,
+                data: {{ tracker_counts | safe }},
                 borderWidth: 2,
                 tension: 0.3,
                 fill: true
@@ -162,7 +162,6 @@ if (frameNumbers.length > 0) {
             }
         }
     });
-
 }
 </script>
 
