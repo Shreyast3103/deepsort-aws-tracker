@@ -4,22 +4,50 @@
     <title>DeepSORT AI Tracker</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
+
 <body class="bg-dark text-light">
 
 <div class="container text-center mt-5">
-    <h1 class="mb-4">🚀 DeepSORT AI Video Tracker</h1>
 
-    <div class="card p-4 bg-secondary">
+    <!-- Title -->
+    <h1 class="mb-3">🚀 DeepSORT AI Video Tracker</h1>
+
+    <!-- Subtitle -->
+    <p class="text-light mb-4">
+        Real-time Multi-Object Tracking using YOLOv10 + DeepSORT <br>
+        Upload a video to analyze object tracking performance and metrics
+    </p>
+
+    <!-- Upload Card -->
+    <div class="card p-4 bg-secondary shadow-lg">
+
+        <h5 class="mb-3">📤 Upload Video</h5>
+
         <form action="/upload" method="post" enctype="multipart/form-data">
             
             <input type="file" name="video" accept="video/*" class="form-control mb-3" required>
-            <small class="text-light">Upload MP4 or video file</small>
+            
+            <small class="text-light">
+                Supported formats: MP4, AVI, MOV
+            </small>
 
             <button type="submit" class="btn btn-warning w-100 mt-3">
-                Process Video (may take time ⏳)
+                ⚙️ Process Video (may take time ⏳)
             </button>
 
         </form>
+
+    </div>
+
+    <!-- Info Section -->
+    <div class="mt-5">
+        <h5>📊 What You Will Get</h5>
+        <ul class="list-unstyled text-light">
+            <li>✔ Object tracking with unique IDs</li>
+            <li>✔ Performance metrics (FPS, detection time)</li>
+            <li>✔ Graph-based analysis of processing time</li>
+            <li>✔ Downloadable logs and outputs</li>
+        </ul>
     </div>
 
 </div>

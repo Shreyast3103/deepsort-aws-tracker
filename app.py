@@ -3,6 +3,7 @@ import subprocess
 import uuid
 import time
 import logging
+import csv
 from flask import Flask, render_template, request, redirect, send_from_directory
 from dotenv import load_dotenv
 import boto3
@@ -19,14 +20,13 @@ BASE_DIR = os.getcwd()
 UPLOAD_FOLDER = os.path.join(BASE_DIR, "uploads")
 OUTPUT_FOLDER = os.path.join(BASE_DIR, "output")
 MODEL_DIR = os.path.join(BASE_DIR, "models")
+
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 os.makedirs(MODEL_DIR, exist_ok=True)
 
 MODEL_YOLO = os.path.join(MODEL_DIR, "yolov10n.onnx")
 MODEL_REID = os.path.join(MODEL_DIR, "reid.onnx")
-
-
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
 # -------------------------------
 # AWS Config
@@ -82,19 +82,22 @@ def generate_presigned_url(s3_key, expiry=3600):
     )
 
 def put_metric(name, value, unit="Count"):
-    cloudwatch.put_metric_data(
-        Namespace="DeepSORTTracker",
-        MetricData=[{
-            "MetricName": name,
-            "Value": value,
-            "Unit": unit
-        }]
-    )
+    try:
+        cloudwatch.put_metric_data(
+            Namespace="DeepSORTTracker",
+            MetricData=[{
+                "MetricName": name,
+                "Value": value,
+                "Unit": unit
+            }]
+        )
+    except Exception:
+        pass
 
 def safe_float(v):
     try:
         return float(v)
-    except Exception:
+    except:
         return None
 
 def download_from_s3(s3_key, local_path):
@@ -104,7 +107,7 @@ def download_from_s3(s3_key, local_path):
     return local_path
 
 # -------------------------------
-# Home Page
+# Home
 # -------------------------------
 @app.route("/")
 def index():
@@ -115,6 +118,7 @@ def index():
 # -------------------------------
 @app.route("/upload", methods=["POST"])
 def upload():
+
     if "video" not in request.files:
         return redirect("/")
 
@@ -129,70 +133,58 @@ def upload():
     logger.info(f"Processing: {filepath}")
     put_metric("VideoUploads", 1)
 
-    # Upload input video to S3
+    # Upload input to S3
     try:
         upload_to_s3(filepath, f"uploads/{unique_name}")
     except Exception as e:
-        logger.error(f"S3 input upload failed: {e}")
+        logger.error(f"S3 upload failed: {e}")
 
     start_time = time.time()
 
     # -------------------------------
-    # Download models from S3 (if not already present)
+    # Ensure models
     # -------------------------------
     try:
         if not os.path.exists(MODEL_YOLO):
-            logger.info("Downloading YOLO model from S3...")
             download_from_s3("models/yolov10n.onnx", MODEL_YOLO)
 
         if not os.path.exists(MODEL_REID):
-            logger.info("Downloading REID model from S3...")
             download_from_s3("models/reid.onnx", MODEL_REID)
 
     except Exception as e:
-        logger.error(f"Model download failed: {e}")
-        return "Model download failed."
-    # -------------------------------
-    # Verify models exist after download
-    # -------------------------------
+        return "Model download failed"
+
     if not os.path.exists(MODEL_YOLO) or not os.path.exists(MODEL_REID):
-        logger.error("Model files not found after download.")
-        return "Model files missing."
+        return "Model missing"
 
-    logger.info("Models ready for inference")
+    logger.info("Models ready")
 
-    try:
-        process = subprocess.Popen(
-            ["python", "src/yolo_deepsort.py", filepath, MODEL_YOLO, MODEL_REID],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            bufsize=1
-        )
+    # -------------------------------
+    # Run YOLO + DeepSORT
+    # -------------------------------
+    process = subprocess.Popen(
+        ["python", "-u", "src/yolo_deepsort.py", filepath, MODEL_YOLO, MODEL_REID],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1
+    )
 
-        # LIVE PRINT STREAMING
-        for line in process.stdout:
-            print(line, end="")        # prints in EC2 terminal
-            logger.info(line.strip())  # sends to CloudWatch
-
-        process.wait()
-    except subprocess.TimeoutExpired:
-        logger.error("Processing timed out.")
-        put_metric("ProcessingTimeout", 1)
-        return "Processing timed out."
-
+    for line in process.stdout:
+        print(line, end="")
+        logger.info(line.strip())
 
     return_code = process.wait()
 
     if return_code != 0:
-        put_metric("ProcessingFailure", 1)
-        return "Processing failed."
+        return "Processing failed"
 
     duration = time.time() - start_time
-    put_metric("ProcessingSuccess", 1)
-    put_metric("ProcessingTimeSeconds", duration, "Seconds")
+    put_metric("ProcessingTime", duration)
 
-    # Get newest output video
+    # -------------------------------
+    # Get output files
+    # -------------------------------
     output_files = sorted(
         [f for f in os.listdir(OUTPUT_FOLDER) if f.startswith("serial_out_")],
         key=lambda x: os.path.getmtime(os.path.join(OUTPUT_FOLDER, x)),
@@ -212,80 +204,86 @@ def upload():
     )
 
     if not output_files:
-        return "No output video generated."
+        return "No output generated"
 
     output_video = output_files[0]
+
+    # -------------------------------
+    # Read metrics
+    # -------------------------------
     metrics = {}
-
-    # -------------------------------
-    # Performance metrics
-    # -------------------------------
     if timings_files:
-        timings_path = os.path.join(OUTPUT_FOLDER, timings_files[0])
-        if os.path.exists(timings_path):
-            with open(timings_path, "r") as f:
-                for line in f:
-                    if ":" in line:
-                        key, value = line.strip().split(":", 1)
-                        metrics[key.strip()] = value.strip()
+        with open(os.path.join(OUTPUT_FOLDER, timings_files[0])) as f:
+            for line in f:
+                if ":" in line:
+                    k, v = line.strip().split(":", 1)
+                    metrics[k.strip()] = v.strip()
 
-    # Send numeric metrics to CloudWatch
-    for key, value in metrics.items():
-        numeric_value = safe_float(value)
-        if numeric_value is not None:
-            metric_name = key.replace(" ", "_").replace("-", "_")
-            try:
-                put_metric(metric_name, numeric_value, unit="Count")
-            except Exception as e:
-                logger.warning(f"Could not send metric {metric_name}: {e}")
+    # -------------------------------
+    # Graph data (dummy for now)
+    # -------------------------------
+    frame_numbers = list(range(1, 50))
+    frame_times = [0.1 + (i % 5) * 0.01 for i in frame_numbers]
 
-    # Upload output files to S3
+    # -------------------------------
+    # Upload outputs
+    # -------------------------------
     s3_links = {}
 
     try:
-        output_key = f"outputs/{output_video}"
-        upload_to_s3(os.path.join(OUTPUT_FOLDER, output_video), output_key)
-        s3_links["video"] = generate_presigned_url(output_key)
+        key = f"outputs/{output_video}"
+        upload_to_s3(os.path.join(OUTPUT_FOLDER, output_video), key)
+        url = generate_presigned_url(key)
+        if url:
+            s3_links["video"] = url
     except Exception as e:
-        logger.error(f"Output video upload failed: {e}")
+        logger.error(f"S3 output upload failed: {e}")
 
     if timings_files:
         try:
-            timings_name = timings_files[0]
-            timings_key = f"logs/{timings_name}"
-            upload_to_s3(os.path.join(OUTPUT_FOLDER, timings_name), timings_key)
-            s3_links["timings"] = generate_presigned_url(timings_key)
-        except Exception as e:
-            logger.error(f"Timings upload failed: {e}")
+            name = timings_files[0]
+            key = f"logs/{name}"
+            upload_to_s3(os.path.join(OUTPUT_FOLDER, name), key)
+            s3_links["timings"] = generate_presigned_url(key)
+        except:
+            pass
 
     if debug_files:
         try:
-            debug_name = debug_files[0]
-            debug_key = f"logs/{debug_name}"
-            upload_to_s3(os.path.join(OUTPUT_FOLDER, debug_name), debug_key)
-            s3_links["debug_log"] = generate_presigned_url(debug_key)
-        except Exception as e:
-            logger.error(f"Debug log upload failed: {e}")
+            name = debug_files[0]
+            key = f"logs/{name}"
+            upload_to_s3(os.path.join(OUTPUT_FOLDER, name), key)
+            s3_links["debug_log"] = generate_presigned_url(key)
+        except:
+            pass
 
-    if "video" in s3_links and s3_links["video"]:
+    # -------------------------------
+    # Fallback video (optional)
+    # -------------------------------
+    if "video" in s3_links:
         video_url = s3_links["video"]
     else:
-        video_url = f"/output/{output_video}"   # LOCAL fallback
+        video_url = f"/output/{output_video}"
 
     return render_template(
         "result.html",
-         video_file=video_url,
-         metrics=metrics,
-         s3_links=s3_links
-         )
+        video_file=video_url,
+        metrics=metrics,
+        s3_links=s3_links,
+        frame_numbers=frame_numbers,
+        frame_times=frame_times
+    )
 
 # -------------------------------
-# Serve Output Files
+# Serve output locally
 # -------------------------------
 @app.route("/output/<filename>")
 def output_file(filename):
     return send_from_directory(OUTPUT_FOLDER, filename)
 
+# -------------------------------
+# Run
+# -------------------------------
 if __name__ == "__main__":
     logger.info("Starting server...")
     app.run(host="0.0.0.0", port=5000, debug=True)

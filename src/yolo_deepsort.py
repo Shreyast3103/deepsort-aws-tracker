@@ -247,7 +247,7 @@ def main():
         base=vid_path.stem
         out_video=str(Path("output")/f"serial_out_{base}.mp4")
         writer=cv2.VideoWriter(out_video,
-                               cv2.VideoWriter_fourcc(*'avc1'),
+                               cv2.VideoWriter_fourcc(*'mp4v'),
                                fps,(frameW,frameH))
 
         dbg=open(str(Path("output")/f"debug_log_{base}.csv"),"w",newline="")
