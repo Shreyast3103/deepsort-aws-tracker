@@ -14,16 +14,16 @@
     <div class="card bg-secondary p-4 mb-4">
         <h4 class="mb-3">Processed Video</h4>
 
-        {% if s3_links and s3_links.video %}
-            <video width="100%" controls controlsList="nodownload" muted autoplay>
-                <source src="{{ s3_links.video }}" type="video/mp4">
+        {% if video_file %}
+            <video width="100%" controls controlsList="nodownload">
+                <source src="{{ video_file }}" type="video/mp4">
                 Your browser does not support video.
             </video>
 
-            <a href="{{ s3_links.video }}"
-               class="btn btn-success mt-3"
-               target="_blank">
-               ⬇ Open Video
+            <a href="{{ video_file }}"
+            class="btn btn-success mt-3"
+            target="_blank">
+            ⬇ Open Video
             </a>
         {% else %}
             <p class="text-warning">No video available.</p>

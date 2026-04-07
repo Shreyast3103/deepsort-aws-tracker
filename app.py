@@ -267,7 +267,7 @@ def upload():
         except Exception as e:
             logger.error(f"Debug log upload failed: {e}")
 
-    if "video" in s3_links:
+    if "video" in s3_links and s3_links["video"]:
         video_url = s3_links["video"]
     else:
         video_url = f"/output/{output_video}"   # LOCAL fallback
