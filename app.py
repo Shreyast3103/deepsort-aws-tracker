@@ -17,9 +17,13 @@ app = Flask(__name__)
 # -------------------------------
 BASE_DIR = os.getcwd()
 UPLOAD_FOLDER = os.path.join(BASE_DIR, "uploads")
-OUTPUT_FOLDER = os.path.join(BASE_DIR, "output")
-MODEL_YOLO = os.path.join(BASE_DIR, "models", "yolov10n.onnx")
-MODEL_REID = os.path.join(BASE_DIR, "models", "reid.onnx")
+OUTPUT_FOLDER = os.path.join(BASE_DIR, "outputs")
+MODEL_DIR = os.path.join(BASE_DIR, "models")
+os.makedirs(MODEL_DIR, exist_ok=True)
+
+MODEL_YOLO = os.path.join(MODEL_DIR, "yolov10n.onnx")
+MODEL_REID = os.path.join(MODEL_DIR, "reid.onnx")
+
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
@@ -93,6 +97,12 @@ def safe_float(v):
     except Exception:
         return None
 
+def download_from_s3(s3_key, local_path):
+    if not S3_BUCKET_NAME:
+        return None
+    s3_client.download_file(S3_BUCKET_NAME, s3_key, local_path)
+    return local_path
+
 # -------------------------------
 # Home Page
 # -------------------------------
@@ -127,17 +137,47 @@ def upload():
 
     start_time = time.time()
 
-    result = subprocess.run(
-        [
-            "python",
-            "src/yolo_deepsort.py",
-            filepath,
-            MODEL_YOLO,
-            MODEL_REID
-        ],
-        capture_output=True,
-        text=True
-    )
+    # -------------------------------
+    # Download models from S3 (if not already present)
+    # -------------------------------
+    try:
+        if not os.path.exists(MODEL_YOLO):
+            logger.info("Downloading YOLO model from S3...")
+            download_from_s3("models/yolov10n.onnx", MODEL_YOLO)
+
+        if not os.path.exists(MODEL_REID):
+            logger.info("Downloading REID model from S3...")
+            download_from_s3("models/reid.onnx", MODEL_REID)
+
+    except Exception as e:
+        logger.error(f"Model download failed: {e}")
+        return "Model download failed."
+    # -------------------------------
+    # Verify models exist after download
+    # -------------------------------
+    if not os.path.exists(MODEL_YOLO) or not os.path.exists(MODEL_REID):
+        logger.error("Model files not found after download.")
+        return "Model files missing."
+
+    logger.info("Models ready for inference")
+
+    try:
+        result = subprocess.run(
+            [
+                "python",
+                "src/yolo_deepsort.py",
+                filepath,
+                MODEL_YOLO,
+                MODEL_REID,
+            ],
+            capture_output=True,
+            text=True,
+            timeout=600
+        )
+    except subprocess.TimeoutExpired:
+        logger.error("Processing timed out.")
+        put_metric("ProcessingTimeout", 1)
+        return "Processing timed out."
 
     logger.info(result.stdout)
     if result.stderr:

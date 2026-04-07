@@ -11,8 +11,14 @@
 
     <div class="card p-4 bg-secondary">
         <form action="/upload" method="post" enctype="multipart/form-data">
-            <input type="file" name="video" class="form-control mb-3" required>
-            <button type="submit" class="btn btn-warning w-100">Process Video</button>
+            
+            <input type="file" name="video" accept="video/*" class="form-control mb-3" required>
+            <small class="text-light">Upload MP4 or video file</small>
+
+            <button type="submit" class="btn btn-warning w-100 mt-3">
+                Process Video (may take time ⏳)
+            </button>
+
         </form>
     </div>
 
