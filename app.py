@@ -182,7 +182,9 @@ def upload():
         return "Processing timed out."
 
 
-    if result.returncode != 0:
+    return_code = process.wait()
+
+    if return_code != 0:
         put_metric("ProcessingFailure", 1)
         return "Processing failed."
 
