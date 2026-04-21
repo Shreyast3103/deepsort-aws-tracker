@@ -118,52 +118,49 @@ def index():
 
 @app.route("/upload", methods=["POST"])
 def upload():
-
     files = request.files.getlist("video")
 
-    if not files or files[0].filename == "":
+    if not files:
         return redirect("/")
 
-    first_job_id = None
-    first_filename = None
+    job_ids = []
 
     for file in files:
+        if file.filename == "":
+            continue
+
         job_id = str(uuid.uuid4())
-        unique_name = f"{job_id}_{file.filename}"
-        path = os.path.join(UPLOAD_FOLDER, unique_name)
 
-        file.save(path)
+        # ✅ DEFINE NAME HERE
+        name = f"{job_id}_{file.filename}"
 
-        save_job(job_id, "queued", "Waiting in queue")
+        filepath = os.path.join(UPLOAD_FOLDER, name)
+        file.save(filepath)
+
+        # ✅ SAVE JOB (with filename)
+        save_job(
+            job_id,
+            "queued",
+            "Waiting in queue",
+            filename=name
+        )
 
         # Upload to S3
-        s3.upload_file(path, S3_BUCKET_NAME, f"uploads/{unique_name}")
+        s3.upload_file(filepath, S3_BUCKET_NAME, f"uploads/{name}")
 
         # Send to SQS
         sqs.send_message(
             QueueUrl=SQS_QUEUE_URL,
             MessageBody=json.dumps({
                 "job_id": job_id,
-                "filename": unique_name,
-                "input_s3_key": f"uploads/{unique_name}"
+                "filename": name,
+                "input_s3_key": f"uploads/{name}"
             })
         )
 
-        # store first job for UI
-        if first_job_id is None:
-            first_job_id = job_id
-            first_filename = unique_name
+        job_ids.append(job_id)
 
-    queue_status = queue_count()
-
-    return render_template(
-        "result.html",
-        job_id=first_job_id,
-        filename=first_filename,
-        status="Queued",
-        queue=queue_status,
-        s3_links=None
-    )
+    return redirect(f"/track/{job_ids[0]}")
 
 @app.route("/status/<job_id>")
 def status(job_id):
