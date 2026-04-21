@@ -71,14 +71,15 @@ if not logger.handlers:
 def job_file(job_id):
     return os.path.join(JOBS_FOLDER, f"{job_id}.json")
 
-def save_job(job_id, status, msg="", output=None):
+def save_job(job_id, status, msg="", output=None, filename=""):
     with open(job_file(job_id), "w") as f:
         json.dump({
             "job_id": job_id,
             "status": status,
             "message": msg,
-            "progress": 0,   # NEW
-            "output_video": output
+            "progress": 0,
+            "output_video": output,
+            "filename": filename   # ✅ IMPORTANT
         }, f)
 
 def load_job(job_id):
@@ -172,6 +173,7 @@ def status(job_id):
         return jsonify({"status": "unknown"})
 
     d["queue"] = queue_count()
+    d["filename"] = d.get("filename", "")
 
     # 🔥 ADD THIS: find next processing job
     next_job = None

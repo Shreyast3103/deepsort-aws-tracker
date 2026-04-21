@@ -18,8 +18,8 @@
 <h1 class="mb-4">🚀 Video Processing Status</h1>
 
 <div class="card bg-secondary p-4 mb-4">
-    <h5>Job ID: {{ job_id }}</h5>
-    <p>File: {{ filename }}</p>
+    <p>Job ID: <span id="jobIdText">{{ job_id }}</span></p>
+    <p>File: <span id="fileNameText">{{ filename }}</span></p>
 
     <h3 id="statusText" class="text-info">{{ status }}</h3>
 
@@ -50,15 +50,6 @@
     </div>
 </div>
 
-<div class="card bg-secondary p-4 mb-4">
-    <h4>🚀 Current Job Progress</h4>
-
-    <div class="progress mt-3" style="height: 25px;">
-        <div id="inflightBar" class="progress-bar bg-info" style="width: 0%">
-            0%
-        </div>
-    </div>
-</div>
 <!-- ========================= -->
 <!-- RESULT SECTION -->
 <!-- ========================= -->
@@ -123,46 +114,6 @@
 
 </div>
 <script>
-const jobId = "{{ job_id }}";
-
-function updateStatus() {
-    fetch(`/status/${jobId}`)
-    .then(res => res.json())
-    .then(data => {
-
-        const progress = data.progress || 0;
-        const status = data.status || "Queued";
-
-        // ✅ Update main status
-        document.getElementById("statusText").innerText = status;
-
-        // ✅ Update main progress bar
-        const bar = document.getElementById("progressBar");
-        bar.style.width = progress + "%";
-        bar.innerText = progress + "%";
-
-        // ✅ Update queue counts
-        if (data.queue) {
-            document.getElementById("waitingCount").innerText = data.queue.available;
-            document.getElementById("processingCount").innerText = data.queue.in_flight;
-            document.getElementById("totalCount").innerText = data.queue.total;
-        }
-
-        // ✅ Update current job progress (NEW)
-        const inflightBar = document.getElementById("inflightBar");
-        inflightBar.style.width = progress + "%";
-        inflightBar.innerText = progress + "%";
-
-        // Reload when completed
-        if (status === "Completed") {
-    document.getElementById("statusText").innerText = "Completed ✅";
-}
-    });
-}
-
-// Run every 2 sec
-setInterval(updateStatus, 2000);
-
 let currentJobId = "{{ job_id }}";
 
 function updateStatus() {
@@ -173,32 +124,40 @@ function updateStatus() {
         const progress = data.progress || 0;
         const status = data.status || "Queued";
 
+        // ✅ Update status
         document.getElementById("statusText").innerText = status;
 
+        // ✅ Update progress bar
         const bar = document.getElementById("progressBar");
         bar.style.width = progress + "%";
         bar.innerText = progress + "%";
 
-        // 🔥 AUTO SWITCH TO NEXT JOB
-        if (status === "Completed" && data.next_job) {
+        // ✅ Update job info
+        document.getElementById("jobIdText").innerText = data.job_id || currentJobId;
+
+        // ⚠️ fallback (since backend may not send filename)
+        if (data.filename) {
+            document.getElementById("fileNameText").innerText = data.filename;
+        }
+
+        // ✅ Auto-switch to next job
+        if (status === "Completed" && data.next_job && data.next_job !== currentJobId) {
             console.log("Switching to next job:", data.next_job);
             currentJobId = data.next_job;
         }
 
-        // Update queue
+        // ✅ Update queue
         if (data.queue) {
             document.getElementById("waitingCount").innerText = data.queue.available;
             document.getElementById("processingCount").innerText = data.queue.in_flight;
             document.getElementById("totalCount").innerText = data.queue.total;
         }
 
-        // Update current job progress
-        const inflightBar = document.getElementById("inflightBar");
-        inflightBar.style.width = progress + "%";
-        inflightBar.innerText = progress + "%";
-    });
+    })
+    .catch(err => console.error("Status error:", err));
 }
 
+// run every 2 sec
 setInterval(updateStatus, 2000);
 </script>
 </body>
