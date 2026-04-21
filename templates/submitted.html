@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Job Status</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body {
+            background: #111827;
+            color: white;
+            font-family: Arial, sans-serif;
+            text-align: center;
+            padding: 40px;
+        }
+        .card {
+            max-width: 760px;
+            margin: auto;
+            background: #1f2937;
+            padding: 30px;
+            border-radius: 16px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.3);
+        }
+        .progress-wrap {
+            width: 100%;
+            background: #374151;
+            border-radius: 999px;
+            margin: 20px 0;
+            overflow: hidden;
+            height: 24px;
+        }
+        .progress-bar {
+            height: 24px;
+            width: 10%;
+            background: linear-gradient(90deg, #f59e0b, #10b981);
+            transition: width 0.6s ease;
+        }
+        .status {
+            font-size: 22px;
+            margin: 12px 0;
+            font-weight: bold;
+        }
+        .message {
+            color: #d1d5db;
+            margin-bottom: 20px;
+        }
+        .pulse {
+            display: inline-block;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: #f59e0b;
+            animation: pulse 1.2s infinite;
+            margin-right: 8px;
+        }
+        @keyframes pulse {
+            0% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.5); opacity: 0.5; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        a.button {
+            display: inline-block;
+            margin-top: 20px;
+            padding: 12px 20px;
+            background: #2563eb;
+            color: white;
+            text-decoration: none;
+            border-radius: 10px;
+        }
+        .done {
+            color: #10b981;
+        }
+        .failed {
+            color: #ef4444;
+        }
+        .queue-box {
+            margin-top: 24px;
+            padding: 18px;
+            background: #111827;
+            border-radius: 14px;
+            text-align: left;
+        }
+        .queue-box h3 {
+            margin-top: 0;
+        }
+        .queue-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+            text-align: center;
+        }
+        .queue-item {
+            background: #374151;
+            padding: 14px;
+            border-radius: 10px;
+        }
+        .queue-number {
+            font-size: 24px;
+            font-weight: bold;
+            margin-top: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>Video Processing Status</h1>
+        <p><strong>Job ID:</strong> {{ job_id }}</p>
+        <p><strong>File:</strong> {{ filename }}</p>
+
+        <div class="status" id="statusText">
+            <span class="pulse"></span>Queued
+        </div>
+
+        <div class="message" id="messageText">
+            Waiting in queue...
+        </div>
+
+        <div class="progress-wrap">
+            <div class="progress-bar" id="progressBar"></div>
+        </div>
+
+        <div class="queue-box">
+            <h3>Live Queue Status</h3>
+            <div class="queue-grid">
+                <div class="queue-item">
+                    <div>Available</div>
+                    <div class="queue-number" id="queueAvailable">0</div>
+                </div>
+                <div class="queue-item">
+                    <div>In Flight</div>
+                    <div class="queue-number" id="queueInFlight">0</div>
+                </div>
+                <div class="queue-item">
+                    <div>Total</div>
+                    <div class="queue-number" id="queueTotal">0</div>
+                </div>
+            </div>
+        </div>
+
+        <div id="resultArea"></div>
+
+        <a class="button" href="/">Upload Another Video</a>
+    </div>
+
+    <script>
+        const jobId = "{{ job_id }}";
+
+        function updateQueue(queue) {
+            document.getElementById("queueAvailable").textContent = queue?.available ?? 0;
+            document.getElementById("queueInFlight").textContent = queue?.in_flight ?? 0;
+            document.getElementById("queueTotal").textContent = queue?.total ?? 0;
+        }
+
+        function updateUI(data) {
+            const statusText = document.getElementById("statusText");
+            const messageText = document.getElementById("messageText");
+            const progressBar = document.getElementById("progressBar");
+            const resultArea = document.getElementById("resultArea");
+
+            messageText.textContent = data.message || "";
+            updateQueue(data.queue_counts);
+
+            if (data.status === "queued") {
+                statusText.innerHTML = '<span class="pulse"></span>Queued';
+                progressBar.style.width = "25%";
+            } else if (data.status === "processing") {
+                statusText.innerHTML = '<span class="pulse"></span>Processing';
+                progressBar.style.width = "70%";
+            } else if (data.status === "completed") {
+                statusText.innerHTML = '<span class="done">Completed</span>';
+                progressBar.style.width = "100%";
+
+                if (data.output_video) {
+                    resultArea.innerHTML = `
+                        <p class="done"><strong>Output ready</strong></p>
+                        <p><a class="button" href="/output/${data.output_video}" download>Download Output</a></p>
+                    `;
+                } else {
+                    resultArea.innerHTML = `<p class="done"><strong>Processing completed</strong></p>`;
+                }
+            } else if (data.status === "failed") {
+                statusText.innerHTML = '<span class="failed">Failed</span>';
+                progressBar.style.width = "100%";
+            }
+        }
+
+        async function pollStatus() {
+            try {
+                const res = await fetch(`/status/${jobId}`);
+                const data = await res.json();
+                updateUI(data);
+
+                if (data.status !== "completed" && data.status !== "failed") {
+                    setTimeout(pollStatus, 2000);
+                } else {
+                    setTimeout(pollStatus, 5000);
+                }
+            } catch (err) {
+                console.error("Polling failed", err);
+                setTimeout(pollStatus, 3000);
+            }
+        }
+
+        pollStatus();
+    </script>
+</body>
+</html>
