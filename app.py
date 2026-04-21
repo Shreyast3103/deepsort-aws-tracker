@@ -209,7 +209,7 @@ def results():
             all_completed = False
 
     return render_template(
-        "results.html",
+        "result.html",
         jobs=jobs,
         all_completed=all_completed
     )
