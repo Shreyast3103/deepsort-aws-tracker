@@ -187,19 +187,25 @@ def upload():
 
 @app.route("/results")
 def results():
-    job_ids = request.args.get("jobs", "").split(",")
+    job_ids = request.args.get("jobs", "")
+
+    if not job_ids:
+        return "No jobs provided"
+
+    job_ids = job_ids.split(",")
 
     jobs = []
     all_completed = True
 
     for job_id in job_ids:
         d = load_job(job_id)
+
         if not d:
-            continue
+            continue  # skip safely
 
         jobs.append(d)
 
-        if d.get("status") != "completed":
+        if d.get("status", "").lower() != "completed":
             all_completed = False
 
     return render_template(

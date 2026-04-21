@@ -149,7 +149,7 @@ while True:
 
         logger.info(f"Processing {jid}")
 
-        update_job(jid, "processing", fname)
+        update_job(jid, "Processing", fname)
 
         local_input = os.path.join(UP, fname)
         s3.download_file(S3_BUCKET, body["input_s3_key"], local_input)
@@ -193,7 +193,9 @@ while True:
 
         summary = read_summary(timings_file)
 
-        update_job(jid, "completed", fname, output_video)
+        # ✅ FINAL FIX
+        update_job(jid, "Completed", fname, output_video)
+
         email(jid, fname, summary, output_video)
 
         sqs.delete_message(
