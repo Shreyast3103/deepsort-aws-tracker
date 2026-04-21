@@ -20,6 +20,7 @@
 <div class="mt-4">
 
 {% for job in jobs %}
+
 <div class="card bg-secondary p-3 mb-3">
 
     <p><strong>Job ID:</strong> {{ job.job_id }}</p>
@@ -28,17 +29,13 @@
 
     {% if job.status == "Completed" and job.output_video %}
         <a href="https://d2ms9vnm7lnlbk.cloudfront.net/{{ job.job_id }}/{{ job.output_video }}" 
-        class="btn btn-success">
+           class="btn btn-success">
             ⬇ Download Output
         </a>
     {% endif %}
 
-        <a href="{{ job.output_url }}" class="btn btn-success" download>
-    ⬇ Download Output
-        </a>
-    {% endif %}
-
 </div>
+
 {% endfor %}
 
 </div>
