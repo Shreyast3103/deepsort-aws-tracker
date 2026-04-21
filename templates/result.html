@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>DeepSORT Status & Results</title>
+    <title>Final Results</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
 
@@ -9,107 +9,42 @@
 
 <div class="container mt-5 text-center">
 
-<!-- ========================= -->
-<!-- STATUS SECTION -->
-<!-- ========================= -->
+<h1>📊 Processing Results</h1>
 
-<h1 class="mb-4">🚀 Video Processing Status</h1>
-
-<div class="card bg-secondary p-4 mb-4">
-    <p>Job ID: <span id="jobIdText">{{ job_id }}</span></p>
-    <p>File: <span id="fileNameText">{{ filename }}</span></p>
-    <h4 id="statusText" class="text-info">{{ status }}</h4>
-</div>
-
-<!-- Queue Status -->
-<div class="card bg-secondary p-4 mb-4">
-    <h4>📊 Queue Overview</h4>
-
-    <div class="row mt-3">
-        <div class="col">
-            <h5>🕒 Waiting</h5>
-            <p id="waitingCount">{{ queue.available }}</p>
-        </div>
-        <div class="col">
-            <h5>⚙️ Processing</h5>
-            <p id="processingCount">{{ queue.in_flight }}</p>
-        </div>
-        <div class="col">
-            <h5>📦 Total Jobs</h5>
-            <p id="totalCount">{{ queue.total }}</p>
-        </div>
-    </div>
-</div>
-
-<!-- ========================= -->
-<!-- RESULT SECTION -->
-<!-- ========================= -->
-
-{% if status == "Completed" %}
-<div class="card bg-secondary p-4 mb-4">
-
-    <h3 class="mb-3">🎯 Tracking Results</h3>
-
-    {% if s3_links and s3_links.video %}
-        <a href="{{ s3_links.video }}" class="btn btn-success" target="_blank">
-            🔗 Open Processed Video
-        </a>
-    {% else %}
-        <p class="text-warning">Video not available.</p>
-    {% endif %}
-</div>
-
-<div class="card bg-secondary p-4 mb-4">
-    <h4 class="mb-3">📊 Performance Metrics</h4>
-
-    {% if metrics %}
-        <ul class="list-group text-start">
-            {% for key, value in metrics.items() %}
-                <li class="list-group-item bg-dark text-light">
-                    <strong>{{ key }}</strong>: {{ value }}
-                </li>
-            {% endfor %}
-        </ul>
-    {% else %}
-        <p>No metrics available.</p>
-    {% endif %}
-</div>
-
+{% if not all_completed %}
+    <h4 class="text-warning mt-4">⏳ Processing... Please wait</h4>
+{% else %}
+    <h4 class="text-success mt-4">✅ All Videos Processed</h4>
 {% endif %}
 
-<!-- Back -->
-<a href="/" class="btn btn-warning">⬅ Upload Another Video</a>
+<div class="mt-4">
+
+{% for job in jobs %}
+<div class="card bg-secondary p-3 mb-3">
+
+    <p><strong>Job ID:</strong> {{ job.job_id }}</p>
+    <p><strong>File:</strong> {{ job.filename }}</p>
+    <p><strong>Status:</strong> {{ job.status }}</p>
+
+    {% if job.status == "completed" and job.output_video %}
+        <a href="/output/{{ job.output_video }}" class="btn btn-success">
+            🎥 View Output
+        </a>
+    {% endif %}
+
+</div>
+{% endfor %}
+
+</div>
+
+<a href="/" class="btn btn-warning mt-4">⬅ Upload More</a>
 
 </div>
 
 <script>
-let currentJobId = "{{ job_id }}";
-
-function updateStatus() {
-    fetch(`/status/${currentJobId}`)
-    .then(res => res.json())
-    .then(data => {
-
-        const status = data.status || "Queued";
-
-        // ✅ Update status
-        document.getElementById("statusText").innerText = status;
-
-        // ✅ Update job info
-        document.getElementById("jobIdText").innerText = data.job_id;
-        document.getElementById("fileNameText").innerText = data.filename || "";
-
-        // ✅ Update queue
-        if (data.queue) {
-            document.getElementById("waitingCount").innerText = data.queue.available;
-            document.getElementById("processingCount").innerText = data.queue.in_flight;
-            document.getElementById("totalCount").innerText = data.queue.total;
-        }
-    });
-}
-
-// refresh every 2 seconds
-setInterval(updateStatus, 2000);
+setInterval(() => {
+    location.reload();
+}, 5000);
 </script>
 
 </body>

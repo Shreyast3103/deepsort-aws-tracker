@@ -183,8 +183,30 @@ def upload():
 
         job_ids.append(job_id)
 
-    return redirect(f"/track/{job_ids[0]}")
+    return redirect(f"/results?jobs={','.join(job_ids)}")
 
+@app.route("/results")
+def results():
+    job_ids = request.args.get("jobs", "").split(",")
+
+    jobs = []
+    all_completed = True
+
+    for job_id in job_ids:
+        d = load_job(job_id)
+        if not d:
+            continue
+
+        jobs.append(d)
+
+        if d.get("status") != "completed":
+            all_completed = False
+
+    return render_template(
+        "results.html",
+        jobs=jobs,
+        all_completed=all_completed
+    )
 
 @app.route("/status/<job_id>")
 def status(job_id):
