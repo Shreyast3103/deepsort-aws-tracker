@@ -26,7 +26,7 @@
     <p><strong>File:</strong> {{ job.filename }}</p>
     <p><strong>Status:</strong> {{ job.status }}</p>
 
-    {% if job.status == "completed" and job.output_video %}
+    {% if job.status == "Completed" and job.output_video %}
         <a href="/output/{{ job.output_video }}" class="btn btn-success">
             🎥 View Output
         </a>
