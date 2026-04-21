@@ -206,8 +206,7 @@ def status(job_id):
         "job_id": job_id,
         "filename": job.get("filename", ""),
         "status": job.get("status", "queued"),
-        "queue": queue_count(),
-        "next_job": next_job
+        "queue": queue_count()
     })
 
 
