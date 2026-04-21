@@ -27,7 +27,7 @@
     <p><strong>File:</strong> {{ job.filename }}</p>
     <p><strong>Status:</strong> {{ job.status }}</p>
 
-    {% if job.status == "Completed" and job.output_video %}
+    {% if job.status == "completed" and job.output_video %}
         <a href="https://d2ms9vnm7lnlbk.cloudfront.net/{{ job.job_id }}/{{ job.output_video }}" 
            class="btn btn-success">
             ⬇ Download Output
