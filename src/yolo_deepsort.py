@@ -8,6 +8,8 @@ import math
 import csv
 from pathlib import Path
 from collections import defaultdict
+import sys
+sys.stdout.reconfigure(line_buffering=True)
 
 # ==============================
 # Simple Kalman (same as C++)
@@ -387,7 +389,8 @@ def main():
             if max_frames>0 and processed>=max_frames:
                 break
             if processed%50==0:
-                print(f"[frame {fidx}] det={det_time}s total={frame_time}s trackers={len(trackers)}")
+                #print(f"[frame {fidx}] det={det_time}s total={frame_time}s trackers={len(trackers)}")
+                print(f"[frame {fidx}] det={det_time}s total={frame_time}s trackers={len(trackers)}", flush=True)
 
         writer.release()
         cap.release()

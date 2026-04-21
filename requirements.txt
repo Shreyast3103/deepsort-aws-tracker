@@ -4,3 +4,5 @@ onnxruntime
 scipy
 flask
 boto3
+watchtower
+python-dotenv
