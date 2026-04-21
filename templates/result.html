@@ -155,8 +155,8 @@ function updateStatus() {
 
         // Reload when completed
         if (status === "Completed") {
-            setTimeout(() => location.reload(), 2000);
-        }
+    document.getElementById("statusText").innerText = "Completed ✅";
+}
     });
 }
 
