@@ -73,28 +73,15 @@ if not logger.handlers:
 def job_path(job_id):
     return os.path.join(JOB, f"{job_id}.json")
 
-def update_job(job_id, status, filename="", progress=0, output=None):
+def update_job(job_id, status, filename="", output=None):
     data = {
         "job_id": job_id,
         "status": status,
         "filename": filename,
-        "progress": progress,
         "output_video": output
     }
     with open(job_path(job_id), "w") as f:
         json.dump(data, f)
-
-def update_progress(job_id, percent, message="Processing"):
-    path = job_path(job_id)
-    if os.path.exists(path):
-        with open(path, "r") as f:
-            data = json.load(f)
-
-        data["progress"] = percent
-        data["status"] = message
-
-        with open(path, "w") as f:
-            json.dump(data, f)
 
 def email(job_id, file, summary_text, output_video=None):
     try:
@@ -162,12 +149,10 @@ while True:
 
         logger.info(f"Processing {jid}")
 
-        update_job(jid, "Processing", fname, 5)
+        update_job(jid, "processing", fname)
 
         local_input = os.path.join(UP, fname)
         s3.download_file(S3_BUCKET, body["input_s3_key"], local_input)
-
-        update_progress(jid, 10, "Downloaded")
 
         process = subprocess.Popen(
             [
@@ -182,21 +167,20 @@ while True:
             text=True
         )
 
-        # Simulate progress while processing
-        progress = 10
         for line in process.stdout:
             logger.info(line.strip())
-
-            progress = min(progress + 2, 90)
-            update_progress(jid, progress, "Processing")
 
         process.wait()
 
         if process.returncode != 0:
-            update_job(jid, "Failed", "Processing failed", progress)
-            continue
+            update_job(jid, "failed", fname)
 
-        update_progress(jid, 95, "Uploading")
+            # ✅ IMPORTANT: delete even if failed
+            sqs.delete_message(
+                QueueUrl=SQS_URL,
+                ReceiptHandle=m["ReceiptHandle"]
+            )
+            continue
 
         output_video, timings_file = find_files(jid)
 
@@ -209,7 +193,7 @@ while True:
 
         summary = read_summary(timings_file)
 
-        update_job(jid, "Completed", fname, 100, output_video)
+        update_job(jid, "completed", fname, output_video)
         email(jid, fname, summary, output_video)
 
         sqs.delete_message(

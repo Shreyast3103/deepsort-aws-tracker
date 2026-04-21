@@ -88,6 +88,10 @@ def load_job(job_id):
         return None
     return json.load(open(f))
 
+
+# -------------------------------
+# Queue status (SQS)
+# -------------------------------
 def queue_count():
     try:
         r = sqs.get_queue_attributes(
@@ -98,6 +102,7 @@ def queue_count():
             ]
         )
         a = r["Attributes"]
+
         available = int(a.get("ApproximateNumberOfMessages", 0))
         in_flight = int(a.get("ApproximateNumberOfMessagesNotVisible", 0))
 
@@ -106,14 +111,15 @@ def queue_count():
             "in_flight": in_flight,
             "total": available + in_flight
         }
-    except:
+
+    except Exception as e:
+        print("Queue error:", e)
         return {"available": 0, "in_flight": 0, "total": 0}
 
-import os
-import json
 
-JOBS_FOLDER = "jobs"
-
+# -------------------------------
+# Get all jobs
+# -------------------------------
 def get_all_jobs():
     jobs = []
 
@@ -131,44 +137,14 @@ def get_all_jobs():
 
     return jobs
 
-import boto3
 
-sqs = boto3.client("sqs")
-SQS_QUEUE_URL = "YOUR_QUEUE_URL"
-
-def get_queue_status():
-    try:
-        res = sqs.get_queue_attributes(
-            QueueUrl=SQS_QUEUE_URL,
-            AttributeNames=[
-                "ApproximateNumberOfMessages",
-                "ApproximateNumberOfMessagesNotVisible"
-            ]
-        )
-
-        waiting = int(res["Attributes"]["ApproximateNumberOfMessages"])
-        processing = int(res["Attributes"]["ApproximateNumberOfMessagesNotVisible"])
-
-        return {
-            "available": waiting,
-            "in_flight": processing,
-            "total": waiting + processing
-        }
-
-    except Exception as e:
-        print("Queue error:", e)
-        return {
-            "available": 0,
-            "in_flight": 0,
-            "total": 0
-        }
-    
 # -------------------------------
 # Routes
 # -------------------------------
 @app.route("/")
 def index():
     return render_template("index.html")
+
 
 @app.route("/upload", methods=["POST"])
 def upload():
@@ -189,10 +165,13 @@ def upload():
         path = os.path.join(UPLOAD_FOLDER, name)
         file.save(path)
 
-        save_job(job_id, "Queued", filename=name)
+        # ✅ ALWAYS lowercase status
+        save_job(job_id, "queued", filename=name)
 
+        # Upload to S3
         s3.upload_file(path, S3_BUCKET_NAME, f"uploads/{name}")
 
+        # Send to SQS
         sqs.send_message(
             QueueUrl=SQS_QUEUE_URL,
             MessageBody=json.dumps({
@@ -206,9 +185,14 @@ def upload():
 
     return redirect(f"/track/{job_ids[0]}")
 
+
 @app.route("/status/<job_id>")
 def status(job_id):
     job = load_job(job_id)
+
+    if not job:
+        return jsonify({"error": "Job not found"}), 404
+
     all_jobs = get_all_jobs()
 
     next_job = None
@@ -222,17 +206,20 @@ def status(job_id):
         "job_id": job_id,
         "filename": job.get("filename", ""),
         "status": job.get("status", "queued"),
-        "queue": get_queue_status(),
+        "queue": queue_count(),
         "next_job": next_job
     })
+
 
 @app.route("/output/<f>")
 def out(f):
     return send_from_directory(OUTPUT_FOLDER, f)
 
+
 @app.route("/track/<job_id>")
 def track(job_id):
     d = load_job(job_id)
+
     if not d:
         return "Job not found"
 
@@ -240,11 +227,13 @@ def track(job_id):
         "result.html",
         job_id=job_id,
         filename=d.get("filename", ""),
-        status=d.get("status", "Queued"),
+        status=d.get("status", "queued"),
         queue=queue_count(),
         s3_links=None,
         metrics=None
     )
+
+
 # -------------------------------
 # Run
 # -------------------------------
