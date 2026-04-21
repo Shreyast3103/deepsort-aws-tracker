@@ -167,13 +167,21 @@ def upload():
 @app.route("/status/<job_id>")
 def status(job_id):
     d = load_job(job_id)
+
     if not d:
         return jsonify({"status": "unknown"})
 
     d["queue"] = queue_count()
 
-    # 🔥 ADD THIS
-    d["inflight_progress"] = d.get("progress", 0)
+    # 🔥 ADD THIS: find next processing job
+    next_job = None
+    for f in os.listdir(JOBS_FOLDER):
+        j = json.load(open(os.path.join(JOBS_FOLDER, f)))
+        if j.get("status") == "Processing":
+            next_job = j["job_id"]
+            break
+
+    d["next_job"] = next_job
 
     return jsonify(d)
 

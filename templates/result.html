@@ -162,6 +162,44 @@ function updateStatus() {
 
 // Run every 2 sec
 setInterval(updateStatus, 2000);
+
+let currentJobId = "{{ job_id }}";
+
+function updateStatus() {
+    fetch(`/status/${currentJobId}`)
+    .then(res => res.json())
+    .then(data => {
+
+        const progress = data.progress || 0;
+        const status = data.status || "Queued";
+
+        document.getElementById("statusText").innerText = status;
+
+        const bar = document.getElementById("progressBar");
+        bar.style.width = progress + "%";
+        bar.innerText = progress + "%";
+
+        // 🔥 AUTO SWITCH TO NEXT JOB
+        if (status === "Completed" && data.next_job) {
+            console.log("Switching to next job:", data.next_job);
+            currentJobId = data.next_job;
+        }
+
+        // Update queue
+        if (data.queue) {
+            document.getElementById("waitingCount").innerText = data.queue.available;
+            document.getElementById("processingCount").innerText = data.queue.in_flight;
+            document.getElementById("totalCount").innerText = data.queue.total;
+        }
+
+        // Update current job progress
+        const inflightBar = document.getElementById("inflightBar");
+        inflightBar.style.width = progress + "%";
+        inflightBar.innerText = progress + "%";
+    });
+}
+
+setInterval(updateStatus, 2000);
 </script>
 </body>
 </html>
