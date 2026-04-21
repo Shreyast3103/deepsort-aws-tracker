@@ -21,12 +21,8 @@
     <p>Job ID: <span id="jobIdText">{{ job_id }}</span></p>
     <p>File: <span id="fileNameText">{{ filename }}</span></p>
 
-    <h3 id="statusText" class="text-info">{{ status }}</h3>
 
-    <div class="progress mt-3" style="height: 25px;">
-    <div id="progressBar" class="progress-bar bg-success" style="width: 0%">
-        0%
-    </div>
+
 </div>
 </div>
 
@@ -121,30 +117,13 @@ function updateStatus() {
     .then(res => res.json())
     .then(data => {
 
-        const progress = data.progress || 0;
         const status = data.status || "Queued";
 
-        // ✅ Update status
+        // Update status only
         document.getElementById("statusText").innerText = status;
-
-        // ✅ Update progress bar
-        const bar = document.getElementById("progressBar");
-        bar.style.width = progress + "%";
-        bar.innerText = progress + "%";
-
         // ✅ Update job info
-        document.getElementById("jobIdText").innerText = data.job_id || currentJobId;
-
-        // ⚠️ fallback (since backend may not send filename)
-        if (data.filename) {
-            document.getElementById("fileNameText").innerText = data.filename;
-        }
-
-        // ✅ Auto-switch to next job
-        if (status === "Completed" && data.next_job && data.next_job !== currentJobId) {
-            console.log("Switching to next job:", data.next_job);
-            currentJobId = data.next_job;
-        }
+        document.getElementById("jobIdText").innerText = data.job_id;
+        document.getElementById("fileNameText").innerText = data.filename || "";
 
         // ✅ Update queue
         if (data.queue) {
@@ -152,9 +131,7 @@ function updateStatus() {
             document.getElementById("processingCount").innerText = data.queue.in_flight;
             document.getElementById("totalCount").innerText = data.queue.total;
         }
-
-    })
-    .catch(err => console.error("Status error:", err));
+    });
 }
 
 // run every 2 sec

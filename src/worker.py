@@ -73,11 +73,11 @@ if not logger.handlers:
 def job_path(job_id):
     return os.path.join(JOB, f"{job_id}.json")
 
-def update_job(job_id, status, msg="", progress=0, output=None):
+def update_job(job_id, status, filename="", progress=0, output=None):
     data = {
         "job_id": job_id,
         "status": status,
-        "message": msg,
+        "filename": filename,
         "progress": progress,
         "output_video": output
     }
@@ -162,7 +162,7 @@ while True:
 
         logger.info(f"Processing {jid}")
 
-        update_job(jid, "Processing", "Started", 5)
+        update_job(jid, "Processing", fname, 5)
 
         local_input = os.path.join(UP, fname)
         s3.download_file(S3_BUCKET, body["input_s3_key"], local_input)
@@ -209,8 +209,7 @@ while True:
 
         summary = read_summary(timings_file)
 
-        update_job(jid, "Completed", "Done", 100, output_video)
-
+        update_job(jid, "Completed", fname, 100, output_video)
         email(jid, fname, summary, output_video)
 
         sqs.delete_message(
