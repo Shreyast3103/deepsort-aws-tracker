@@ -1,47 +1,24 @@
 import os
 import subprocess
 import uuid
-<<<<<<< HEAD
-import logging
-import boto3
-from flask import Flask, render_template, request, redirect
-=======
 import time
 import logging
-import csv
 from flask import Flask, render_template, request, redirect, send_from_directory
 from dotenv import load_dotenv
 import boto3
 import watchtower
 
 load_dotenv()
->>>>>>> c59e0eddfc7defab76b15afd5dbf48c624726ae1
 
 app = Flask(__name__)
 
-# -------------------------------
-# Logging (for CloudWatch later)
-# -------------------------------
-logging.basicConfig(
-    filename="app.log",
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)s %(message)s"
-)
-
-logging.info("App started successfully") 
 # -------------------------------
 # Paths
 # -------------------------------
 BASE_DIR = os.getcwd()
 UPLOAD_FOLDER = os.path.join(BASE_DIR, "uploads")
 OUTPUT_FOLDER = os.path.join(BASE_DIR, "output")
-<<<<<<< HEAD
-
-MODEL_YOLO = os.path.join(BASE_DIR, "models", "yolov10n.onnx")
-MODEL_REID = os.path.join(BASE_DIR, "models", "reid.onnx")
-=======
 MODEL_DIR = os.path.join(BASE_DIR, "models")
->>>>>>> c59e0eddfc7defab76b15afd5dbf48c624726ae1
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
@@ -51,15 +28,6 @@ MODEL_YOLO = os.path.join(MODEL_DIR, "yolov10n.onnx")
 MODEL_REID = os.path.join(MODEL_DIR, "reid.onnx")
 
 # -------------------------------
-<<<<<<< HEAD
-# S3 CONFIG
-# -------------------------------
-BUCKET_NAME = "deepsort-tracker-bucket"   # ⚠️ change if needed
-s3 = boto3.client('s3')
-
-# -------------------------------
-# Home Page
-=======
 # AWS Config
 # -------------------------------
 AWS_REGION = os.getenv("AWS_REGION", "us-east-1")
@@ -86,7 +54,7 @@ if not logger.handlers:
     try:
         cw_handler = watchtower.CloudWatchLogHandler(
             log_group_name=CW_LOG_GROUP,
-            log_stream_name=f"run-{uuid.uuid4()}",
+            log_stream_name="flask-app",
             boto3_client=logs_client,
         )
         cw_handler.setFormatter(formatter)
@@ -125,12 +93,6 @@ def put_metric(name, value, unit="Count"):
     except Exception:
         pass
 
-def safe_float(v):
-    try:
-        return float(v)
-    except:
-        return None
-
 def download_from_s3(s3_key, local_path):
     if not S3_BUCKET_NAME:
         return None
@@ -139,7 +101,6 @@ def download_from_s3(s3_key, local_path):
 
 # -------------------------------
 # Home
->>>>>>> c59e0eddfc7defab76b15afd5dbf48c624726ae1
 # -------------------------------
 @app.route("/")
 def index():
@@ -162,27 +123,9 @@ def upload():
     filepath = os.path.join(UPLOAD_FOLDER, unique_name)
     file.save(filepath)
 
-<<<<<<< HEAD
-    logging.info(f"Uploaded file: {unique_name}")
-
-    # -------------------------------
-    # Upload INPUT to S3
-    # -------------------------------
-    try:
-        s3.upload_file(filepath, BUCKET_NAME, f"input/{unique_name}")
-        logging.info("Uploaded input video to S3")
-    except Exception as e:
-        logging.error(f"S3 upload failed: {e}")
-
-    # -------------------------------
-    # Run DeepSORT
-    # -------------------------------
-    logging.info("Starting processing...")
-=======
     logger.info("=== Upload Received ===")
     logger.info(f"Processing: {filepath}")
     put_metric("VideoUploads", 1)
->>>>>>> c59e0eddfc7defab76b15afd5dbf48c624726ae1
 
     # Upload input to S3
     try:
@@ -190,16 +133,10 @@ def upload():
     except Exception as e:
         logger.error(f"S3 upload failed: {e}")
 
-<<<<<<< HEAD
-    logging.info("Processing completed")
-
-    # -------------------------------
-    # Get latest output
-=======
     start_time = time.time()
 
     # -------------------------------
-    # Ensure models
+    # Ensure models (download from S3 if missing)
     # -------------------------------
     try:
         if not os.path.exists(MODEL_YOLO):
@@ -208,20 +145,21 @@ def upload():
         if not os.path.exists(MODEL_REID):
             download_from_s3("models/reid.onnx", MODEL_REID)
 
-    except Exception as e:
+    except Exception:
+        logger.error("Model download failed")
         return "Model download failed"
 
     if not os.path.exists(MODEL_YOLO) or not os.path.exists(MODEL_REID):
         return "Model missing"
 
     logger.info("=== Models Ready ===")
+    logger.info("=== Processing Started ===")
 
     # -------------------------------
-    # Run YOLO + DeepSORT
+    # Run DeepSORT
     # -------------------------------
-    logger.info("=== Processing Started ===")
     process = subprocess.Popen(
-        ["python", "-u", "src/yolo_deepsort.py", filepath, MODEL_YOLO, MODEL_REID],
+        ["python3", "-u", "src/yolo_deepsort.py", filepath, MODEL_YOLO, MODEL_REID],
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
@@ -233,14 +171,14 @@ def upload():
         logger.info(line.strip())
 
     return_code = process.wait()
+
     logger.info("=== Processing Completed ===")
-    
+
     if return_code != 0:
         logger.error("Processing failed")
         put_metric("ProcessingFailure", 1)
         return "Processing failed"
 
-    # SUCCESS CASE
     put_metric("ProcessingSuccess", 1)
 
     duration = time.time() - start_time
@@ -248,7 +186,6 @@ def upload():
 
     # -------------------------------
     # Get output files
->>>>>>> c59e0eddfc7defab76b15afd5dbf48c624726ae1
     # -------------------------------
     output_files = sorted(
         [f for f in os.listdir(OUTPUT_FOLDER) if f.startswith("serial_out_")],
@@ -272,9 +209,6 @@ def upload():
         return "No output generated"
 
     output_video = output_files[0]
-<<<<<<< HEAD
-    output_path = os.path.join(OUTPUT_FOLDER, output_video)
-=======
 
     # -------------------------------
     # Read metrics
@@ -288,44 +222,17 @@ def upload():
                     metrics[k.strip()] = v.strip()
 
     # -------------------------------
-    # Graph data (dummy for now)
-    # -------------------------------
-    frame_numbers = list(range(1, 50))
-    frame_times = [0.1 + (i % 5) * 0.01 for i in frame_numbers]
-
-    # -------------------------------
-    # Upload outputs
+    # Upload outputs to S3
     # -------------------------------
     s3_links = {}
 
     try:
         key = f"outputs/{output_video}"
         upload_to_s3(os.path.join(OUTPUT_FOLDER, output_video), key)
-        url = generate_presigned_url(key)
-        if url:
-            s3_links["video"] = url
+        s3_links["video"] = generate_presigned_url(key)
     except Exception as e:
         logger.error(f"S3 output upload failed: {e}")
->>>>>>> c59e0eddfc7defab76b15afd5dbf48c624726ae1
 
-    # -------------------------------
-    # Upload OUTPUT to S3
-    # -------------------------------
-    try:
-        s3.upload_file(output_path, BUCKET_NAME, f"output/{output_video}")
-        logging.info("Uploaded output video to S3")
-    except Exception as e:
-        logging.error(f"S3 output upload failed: {e}")
-
-    # -------------------------------
-    # Create S3 URL
-    # -------------------------------
-    video_url = f"https://{BUCKET_NAME}.s3.amazonaws.com/output/{output_video}"
-
-    # -------------------------------
-    # Read metrics
-    # -------------------------------
-    metrics = {}
     if timings_files:
         try:
             name = timings_files[0]
@@ -345,34 +252,23 @@ def upload():
             pass
 
     # -------------------------------
-    # Fallback video (optional)
+    # Video URL
     # -------------------------------
-    if "video" in s3_links:
-        video_url = s3_links["video"]
-    else:
-        video_url = f"/output/{output_video}"
+    video_url = s3_links.get("video", f"/output/{output_video}")
 
     return render_template(
         "result.html",
         video_file=video_url,
-<<<<<<< HEAD
-        metrics=metrics
-    )
-
-=======
         metrics=metrics,
-        s3_links=s3_links,
-        frame_numbers=frame_numbers,
-        frame_times=frame_times
+        s3_links=s3_links
     )
 
 # -------------------------------
-# Serve output locally
+# Serve local output (fallback)
 # -------------------------------
 @app.route("/output/<filename>")
 def output_file(filename):
     return send_from_directory(OUTPUT_FOLDER, filename)
->>>>>>> c59e0eddfc7defab76b15afd5dbf48c624726ae1
 
 # -------------------------------
 # Run

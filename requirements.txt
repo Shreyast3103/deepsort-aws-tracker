@@ -1,8 +1,8 @@
-opencv-python
-numpy
-onnxruntime
-scipy
 flask
 boto3
 watchtower
 python-dotenv
+opencv-python
+numpy
+onnxruntime
+scipy
