@@ -109,6 +109,60 @@ def queue_count():
     except:
         return {"available": 0, "in_flight": 0, "total": 0}
 
+import os
+import json
+
+JOBS_FOLDER = "jobs"
+
+def get_all_jobs():
+    jobs = []
+
+    if not os.path.exists(JOBS_FOLDER):
+        return jobs
+
+    for f in os.listdir(JOBS_FOLDER):
+        path = os.path.join(JOBS_FOLDER, f)
+
+        try:
+            with open(path, "r") as file:
+                jobs.append(json.load(file))
+        except:
+            pass
+
+    return jobs
+
+import boto3
+
+sqs = boto3.client("sqs")
+SQS_QUEUE_URL = "YOUR_QUEUE_URL"
+
+def get_queue_status():
+    try:
+        res = sqs.get_queue_attributes(
+            QueueUrl=SQS_QUEUE_URL,
+            AttributeNames=[
+                "ApproximateNumberOfMessages",
+                "ApproximateNumberOfMessagesNotVisible"
+            ]
+        )
+
+        waiting = int(res["Attributes"]["ApproximateNumberOfMessages"])
+        processing = int(res["Attributes"]["ApproximateNumberOfMessagesNotVisible"])
+
+        return {
+            "available": waiting,
+            "in_flight": processing,
+            "total": waiting + processing
+        }
+
+    except Exception as e:
+        print("Queue error:", e)
+        return {
+            "available": 0,
+            "in_flight": 0,
+            "total": 0
+        }
+    
 # -------------------------------
 # Routes
 # -------------------------------
@@ -154,24 +208,23 @@ def upload():
 
 @app.route("/status/<job_id>")
 def status(job_id):
-    d = load_job(job_id)
-    if not d:
-        return jsonify({"status": "unknown"})
+    job = load_job(job_id)
+    all_jobs = get_all_jobs()
 
-    d["queue"] = queue_count()
-    d["filename"] = d.get("filename", "")
-
-    # find next processing job
     next_job = None
-    for f in os.listdir(JOBS_FOLDER):
-        j = json.load(open(os.path.join(JOBS_FOLDER, f)))
-        if j.get("status") == "Processing":
-            next_job = j["job_id"]
+
+    for j in all_jobs:
+        if j.get("status") != "completed":
+            next_job = j.get("job_id")
             break
 
-    d["next_job"] = next_job
-
-    return jsonify(d)
+    return jsonify({
+        "job_id": job_id,
+        "filename": job.get("filename", ""),
+        "status": job.get("status", "queued"),
+        "queue": get_queue_status(),
+        "next_job": next_job
+    })
 
 @app.route("/output/<f>")
 def out(f):
