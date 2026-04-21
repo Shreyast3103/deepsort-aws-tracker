@@ -27,8 +27,8 @@
     <p><strong>Status:</strong> {{ job.status }}</p>
 
     {% if job.status == "Completed" and job.output_video %}
-        <a href="/output/{{ job.output_video }}" class="btn btn-success">
-            🎥 View Output
+        <a href="/output/{{ job.output_video }}" class="btn btn-success" download>
+    ⬇ Download Output
         </a>
     {% endif %}
 
