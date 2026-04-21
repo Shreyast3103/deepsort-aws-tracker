@@ -1,5 +1,4 @@
 <!DOCTYPE html>
-
 <html>
 <head>
     <title>DeepSORT AI Tracker</title>
@@ -10,25 +9,16 @@
 
 <div class="container text-center mt-5">
 
-
-<!-- Title -->
 <h1 class="mb-3">🚀 DeepSORT AI Video Tracker</h1>
 
-<!-- Subtitle -->
 <p class="text-light mb-4">
     Real-time Multi-Object Tracking using YOLOv10 + DeepSORT <br>
     Upload one or multiple videos for batch processing
 </p>
 
-<!-- Upload Card -->
-<!-- Upload Card -->
-
 <div class="card p-4 bg-secondary shadow-lg">
 
-
 <h5 class="mb-3">📤 Upload Video(s)</h5>
-
-
 
 <form action="/upload" method="post" enctype="multipart/form-data">
 
@@ -46,12 +36,8 @@
         Supported formats: MP4, AVI, MOV
     </small>
 
-    <!-- File count -->
     <p id="fileCount" class="mt-3 text-info"></p>
-
-    <!-- File list with sizes -->
     <ul id="fileList" class="text-start mt-2"></ul>
-
 
     <button type="submit" class="btn btn-warning w-100 mt-3">
         ⚙️ Start Processing
@@ -59,21 +45,17 @@
 
 </form>
 
-
 </div>
 
 <script>
 const input = document.getElementById("videoInput");
 const fileList = document.getElementById("fileList");
 const fileCount = document.getElementById("fileCount");
-const progressBar = document.getElementById("uploadProgress");
 
-// Convert bytes → MB
 function formatSize(bytes) {
     return (bytes / (1024 * 1024)).toFixed(2) + " MB";
 }
 
-// Show file names + sizes
 input.addEventListener("change", function() {
     fileList.innerHTML = "";
 
@@ -90,37 +72,8 @@ input.addEventListener("change", function() {
         fileList.appendChild(li);
     }
 });
-
-
 </script>
 
-
-<script>
-document.getElementById("videoInput").addEventListener("change", function() {
-
-    const files = this.files;
-    const fileList = document.getElementById("fileList");
-    const fileCount = document.getElementById("fileCount");
-
-    fileList.innerHTML = "";
-
-    if (files.length === 0) {
-        fileCount.innerText = "";
-        return;
-    }
-
-    fileCount.innerText = `📦 ${files.length} file(s) selected`;
-
-    for (let i = 0; i < files.length; i++) {
-        const li = document.createElement("li");
-        li.innerText = files[i].name;
-        fileList.appendChild(li);
-    }
-});
-</script>
-
-
-<!-- Info Section -->
 <div class="mt-5">
     <h5>📊 What Happens After Upload</h5>
     <ul class="list-unstyled text-light">
@@ -130,7 +83,6 @@ document.getElementById("videoInput").addEventListener("change", function() {
         <li>✔ You can track status in real-time</li>
     </ul>
 </div>
-
 
 </div>
 

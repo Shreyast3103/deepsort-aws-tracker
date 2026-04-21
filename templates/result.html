@@ -1,5 +1,4 @@
 <!DOCTYPE html>
-
 <html>
 <head>
     <title>DeepSORT Status & Results</title>
@@ -10,7 +9,6 @@
 
 <div class="container mt-5 text-center">
 
-
 <!-- ========================= -->
 <!-- STATUS SECTION -->
 <!-- ========================= -->
@@ -20,10 +18,7 @@
 <div class="card bg-secondary p-4 mb-4">
     <p>Job ID: <span id="jobIdText">{{ job_id }}</span></p>
     <p>File: <span id="fileNameText">{{ filename }}</span></p>
-
-
-
-</div>
+    <h4 id="statusText" class="text-info">{{ status }}</h4>
 </div>
 
 <!-- Queue Status -->
@@ -55,7 +50,6 @@
 
     <h3 class="mb-3">🎯 Tracking Results</h3>
 
-    <!-- ✅ Only S3 link -->
     {% if s3_links and s3_links.video %}
         <a href="{{ s3_links.video }}" class="btn btn-success" target="_blank">
             🔗 Open Processed Video
@@ -63,10 +57,8 @@
     {% else %}
         <p class="text-warning">Video not available.</p>
     {% endif %}
-
 </div>
 
-<!-- 📊 Metrics -->
 <div class="card bg-secondary p-4 mb-4">
     <h4 class="mb-3">📊 Performance Metrics</h4>
 
@@ -83,32 +75,13 @@
     {% endif %}
 </div>
 
-<!-- 📂 Optional logs -->
-{% if s3_links %}
-<div class="card bg-secondary p-4 mb-4">
-    <h4 class="mb-3">📂 Logs</h4>
-
-    {% if s3_links.timings %}
-        <a href="{{ s3_links.timings }}" class="btn btn-info m-1" target="_blank">
-            Timings
-        </a>
-    {% endif %}
-
-    {% if s3_links.debug_log %}
-        <a href="{{ s3_links.debug_log }}" class="btn btn-warning m-1" target="_blank">
-            Debug Log
-        </a>
-    {% endif %}
-</div>
-{% endif %}
-
 {% endif %}
 
 <!-- Back -->
 <a href="/" class="btn btn-warning">⬅ Upload Another Video</a>
 
-
 </div>
+
 <script>
 let currentJobId = "{{ job_id }}";
 
@@ -119,8 +92,9 @@ function updateStatus() {
 
         const status = data.status || "Queued";
 
-        // Update status only
+        // ✅ Update status
         document.getElementById("statusText").innerText = status;
+
         // ✅ Update job info
         document.getElementById("jobIdText").innerText = data.job_id;
         document.getElementById("fileNameText").innerText = data.filename || "";
@@ -134,8 +108,9 @@ function updateStatus() {
     });
 }
 
-// run every 2 sec
+// refresh every 2 seconds
 setInterval(updateStatus, 2000);
 </script>
+
 </body>
 </html>
