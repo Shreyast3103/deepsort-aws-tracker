@@ -171,6 +171,10 @@ def status(job_id):
         return jsonify({"status": "unknown"})
 
     d["queue"] = queue_count()
+
+    # 🔥 ADD THIS
+    d["inflight_progress"] = d.get("progress", 0)
+
     return jsonify(d)
 
 @app.route("/output/<f>")
