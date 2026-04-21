@@ -71,15 +71,15 @@ if not logger.handlers:
 def job_file(job_id):
     return os.path.join(JOBS_FOLDER, f"{job_id}.json")
 
-def save_job(job_id, status, msg="", output=None, filename=""):
+def save_job(job_id, status, msg="", progress=0, output=None, filename=""):
     with open(job_file(job_id), "w") as f:
         json.dump({
             "job_id": job_id,
             "status": status,
             "message": msg,
-            "progress": 0,
+            "progress": progress,
             "output_video": output,
-            "filename": filename   # ✅ IMPORTANT
+            "filename": filename
         }, f)
 
 def load_job(job_id):
@@ -130,25 +130,15 @@ def upload():
             continue
 
         job_id = str(uuid.uuid4())
-
-        # ✅ DEFINE NAME HERE
         name = f"{job_id}_{file.filename}"
 
-        filepath = os.path.join(UPLOAD_FOLDER, name)
-        file.save(filepath)
+        path = os.path.join(UPLOAD_FOLDER, name)
+        file.save(path)
 
-        # ✅ SAVE JOB (with filename)
-        save_job(
-            job_id,
-            "queued",
-            "Waiting in queue",
-            filename=name
-        )
+        save_job(job_id, "Queued", filename=name)
 
-        # Upload to S3
-        s3.upload_file(filepath, S3_BUCKET_NAME, f"uploads/{name}")
+        s3.upload_file(path, S3_BUCKET_NAME, f"uploads/{name}")
 
-        # Send to SQS
         sqs.send_message(
             QueueUrl=SQS_QUEUE_URL,
             MessageBody=json.dumps({
@@ -165,14 +155,13 @@ def upload():
 @app.route("/status/<job_id>")
 def status(job_id):
     d = load_job(job_id)
-
     if not d:
         return jsonify({"status": "unknown"})
 
     d["queue"] = queue_count()
     d["filename"] = d.get("filename", "")
 
-    # 🔥 ADD THIS: find next processing job
+    # find next processing job
     next_job = None
     for f in os.listdir(JOBS_FOLDER):
         j = json.load(open(os.path.join(JOBS_FOLDER, f)))
@@ -188,6 +177,21 @@ def status(job_id):
 def out(f):
     return send_from_directory(OUTPUT_FOLDER, f)
 
+@app.route("/track/<job_id>")
+def track(job_id):
+    d = load_job(job_id)
+    if not d:
+        return "Job not found"
+
+    return render_template(
+        "result.html",
+        job_id=job_id,
+        filename=d.get("filename", ""),
+        status=d.get("status", "Queued"),
+        queue=queue_count(),
+        s3_links=None,
+        metrics=None
+    )
 # -------------------------------
 # Run
 # -------------------------------
