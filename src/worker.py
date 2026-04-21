@@ -186,10 +186,10 @@ while True:
 
         if output_video:
             s3.upload_file(
-                os.path.join(OUT, output_video),
-                S3_BUCKET,
-                f"outputs/{jid}/{output_video}"
-            )
+            os.path.join(OUT, output_video),
+            S3_BUCKET,
+            f"outputs/{jid}/{output_video}"
+        )
 
         summary = read_summary(timings_file)
 

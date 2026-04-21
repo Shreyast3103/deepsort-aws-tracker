@@ -40,6 +40,7 @@ os.makedirs(JOBS_FOLDER, exist_ok=True)
 s3 = boto3.client("s3", region_name=AWS_REGION)
 sqs = boto3.client("sqs", region_name=AWS_REGION)
 logs = boto3.client("logs", region_name=AWS_REGION)
+CLOUDFRONT_DOMAIN = "https://d2ms9vnm7lnlbk.cloudfront.net"
 
 # -------------------------------
 # Logging
@@ -92,31 +93,32 @@ def load_job(job_id):
 # -------------------------------
 # Queue status (SQS)
 # -------------------------------
-def queue_count():
+def get_queue_status():
     try:
-        r = sqs.get_queue_attributes(
+        res = sqs.get_queue_attributes(
             QueueUrl=SQS_QUEUE_URL,
             AttributeNames=[
                 "ApproximateNumberOfMessages",
                 "ApproximateNumberOfMessagesNotVisible"
             ]
         )
-        a = r["Attributes"]
 
-        available = int(a.get("ApproximateNumberOfMessages", 0))
-        in_flight = int(a.get("ApproximateNumberOfMessagesNotVisible", 0))
+        waiting = int(res["Attributes"].get("ApproximateNumberOfMessages", 0))
+        processing = int(res["Attributes"].get("ApproximateNumberOfMessagesNotVisible", 0))
 
         return {
-            "available": available,
-            "in_flight": in_flight,
-            "total": available + in_flight
+            "available": waiting,
+            "in_flight": processing,
+            "total": waiting + processing
         }
 
     except Exception as e:
         print("Queue error:", e)
-        return {"available": 0, "in_flight": 0, "total": 0}
-
-
+        return {
+            "available": 0,
+            "in_flight": 0,
+            "total": 0
+        }
 # -------------------------------
 # Get all jobs
 # -------------------------------
@@ -218,23 +220,17 @@ def results():
 def status(job_id):
     job = load_job(job_id)
 
-    if not job:
-        return jsonify({"error": "Job not found"}), 404
+    output_url = None
 
-    all_jobs = get_all_jobs()
-
-    next_job = None
-
-    for j in all_jobs:
-        if j.get("status") != "completed":
-            next_job = j.get("job_id")
-            break
+    if job and job.get("output_video"):
+        output_url = f"{CLOUDFRONT_DOMAIN}/{job_id}/{job['output_video']}"
 
     return jsonify({
         "job_id": job_id,
         "filename": job.get("filename", ""),
-        "status": job.get("status", "queued"),
-        "queue": queue_count()
+        "status": job.get("status", "Queued"),
+        "queue": get_queue_status(),
+        "output_url": output_url
     })
 
 
@@ -255,7 +251,7 @@ def track(job_id):
         job_id=job_id,
         filename=d.get("filename", ""),
         status=d.get("status", "queued"),
-        queue=queue_count(),
+        queue=get_queue_status(),
         s3_links=None,
         metrics=None
     )
