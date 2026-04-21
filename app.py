@@ -1,7 +1,6 @@
 import os
 import json
 import uuid
-import time
 import logging
 from flask import Flask, render_template, request, redirect, send_from_directory, jsonify
 import boto3
@@ -40,7 +39,6 @@ os.makedirs(JOBS_FOLDER, exist_ok=True)
 # -------------------------------
 s3 = boto3.client("s3", region_name=AWS_REGION)
 sqs = boto3.client("sqs", region_name=AWS_REGION)
-cloudwatch = boto3.client("cloudwatch", region_name=AWS_REGION)
 logs = boto3.client("logs", region_name=AWS_REGION)
 
 # -------------------------------
@@ -79,6 +77,7 @@ def save_job(job_id, status, msg="", output=None):
             "job_id": job_id,
             "status": status,
             "message": msg,
+            "progress": 0,   # NEW
             "output_video": output
         }, f)
 
@@ -92,61 +91,94 @@ def queue_count():
     try:
         r = sqs.get_queue_attributes(
             QueueUrl=SQS_QUEUE_URL,
-            AttributeNames=["ApproximateNumberOfMessages","ApproximateNumberOfMessagesNotVisible"]
+            AttributeNames=[
+                "ApproximateNumberOfMessages",
+                "ApproximateNumberOfMessagesNotVisible"
+            ]
         )
         a = r["Attributes"]
+        available = int(a.get("ApproximateNumberOfMessages", 0))
+        in_flight = int(a.get("ApproximateNumberOfMessagesNotVisible", 0))
+
         return {
-            "available": int(a.get("ApproximateNumberOfMessages",0)),
-            "in_flight": int(a.get("ApproximateNumberOfMessagesNotVisible",0)),
-            "total": int(a.get("ApproximateNumberOfMessages",0)) + int(a.get("ApproximateNumberOfMessagesNotVisible",0))
+            "available": available,
+            "in_flight": in_flight,
+            "total": available + in_flight
         }
     except:
-        return {"available":0,"in_flight":0,"total":0}
+        return {"available": 0, "in_flight": 0, "total": 0}
 
 # -------------------------------
 # Routes
 # -------------------------------
 @app.route("/")
 def index():
-    return render_template("index.html", queue_counts=queue_count())
+    return render_template("index.html")
 
 @app.route("/upload", methods=["POST"])
 def upload():
-    file = request.files.get("video")
-    if not file:
+
+    files = request.files.getlist("video")
+
+    if not files or files[0].filename == "":
         return redirect("/")
 
-    job_id = str(uuid.uuid4())
-    name = f"{job_id}_{file.filename}"
-    path = os.path.join(UPLOAD_FOLDER, name)
-    file.save(path)
+    first_job_id = None
+    first_filename = None
 
-    save_job(job_id, "queued", "Waiting in queue")
+    for file in files:
+        job_id = str(uuid.uuid4())
+        unique_name = f"{job_id}_{file.filename}"
+        path = os.path.join(UPLOAD_FOLDER, unique_name)
 
-    s3.upload_file(path, S3_BUCKET_NAME, f"uploads/{name}")
+        file.save(path)
 
-    sqs.send_message(
-        QueueUrl=SQS_QUEUE_URL,
-        MessageBody=json.dumps({
-            "job_id": job_id,
-            "filename": name,
-            "input_s3_key": f"uploads/{name}"
-        })
+        save_job(job_id, "queued", "Waiting in queue")
+
+        # Upload to S3
+        s3.upload_file(path, S3_BUCKET_NAME, f"uploads/{unique_name}")
+
+        # Send to SQS
+        sqs.send_message(
+            QueueUrl=SQS_QUEUE_URL,
+            MessageBody=json.dumps({
+                "job_id": job_id,
+                "filename": unique_name,
+                "input_s3_key": f"uploads/{unique_name}"
+            })
+        )
+
+        # store first job for UI
+        if first_job_id is None:
+            first_job_id = job_id
+            first_filename = unique_name
+
+    queue_status = queue_count()
+
+    return render_template(
+        "result.html",
+        job_id=first_job_id,
+        filename=first_filename,
+        status="Queued",
+        queue=queue_status,
+        s3_links=None
     )
-
-    return render_template("submitted.html", job_id=job_id, filename=name)
 
 @app.route("/status/<job_id>")
 def status(job_id):
     d = load_job(job_id)
     if not d:
-        return jsonify({"status":"unknown"})
-    d["queue_counts"] = queue_count()
+        return jsonify({"status": "unknown"})
+
+    d["queue"] = queue_count()
     return jsonify(d)
 
 @app.route("/output/<f>")
 def out(f):
     return send_from_directory(OUTPUT_FOLDER, f)
 
+# -------------------------------
+# Run
+# -------------------------------
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)

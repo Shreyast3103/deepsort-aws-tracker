@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+
 <html>
 <head>
     <title>DeepSORT AI Tracker</title>
@@ -9,46 +10,160 @@
 
 <div class="container text-center mt-5">
 
-    <!-- Title -->
-    <h1 class="mb-3">🚀 DeepSORT AI Video Tracker</h1>
+```
+<!-- Title -->
+<h1 class="mb-3">🚀 DeepSORT AI Video Tracker</h1>
 
-    <!-- Subtitle -->
-    <p class="text-light mb-4">
-        Real-time Multi-Object Tracking using YOLOv10 + DeepSORT <br>
-        Upload a video to analyze object tracking performance and metrics
-    </p>
+<!-- Subtitle -->
+<p class="text-light mb-4">
+    Real-time Multi-Object Tracking using YOLOv10 + DeepSORT <br>
+    Upload one or multiple videos for batch processing
+</p>
 
-    <!-- Upload Card -->
-    <div class="card p-4 bg-secondary shadow-lg">
+<!-- Upload Card -->
+<!-- Upload Card -->
 
-        <h5 class="mb-3">📤 Upload Video</h5>
+<div class="card p-4 bg-secondary shadow-lg">
 
-        <form action="/upload" method="post" enctype="multipart/form-data">
-            
-            <input type="file" name="video" accept="video/*" class="form-control mb-3" required>
-            
-            <small class="text-light">
-                Supported formats: MP4, AVI, MOV
-            </small>
+```
+<h5 class="mb-3">📤 Upload Video(s)</h5>
 
-            <button type="submit" class="btn btn-warning w-100 mt-3">
-                ⚙️ Process Video (may take time ⏳)
-            </button>
+<form id="uploadForm" enctype="multipart/form-data">
 
-        </form>
+    <input 
+        type="file" 
+        id="videoInput"
+        name="video" 
+        accept="video/*" 
+        class="form-control mb-3" 
+        multiple 
+        required
+    >
 
+    <small class="text-light">
+        Supported formats: MP4, AVI, MOV
+    </small>
+
+    <!-- File count -->
+    <p id="fileCount" class="mt-3 text-info"></p>
+
+    <!-- File list with sizes -->
+    <ul id="fileList" class="text-start mt-2"></ul>
+
+    <!-- Progress Bar -->
+    <div class="progress mt-3" style="height: 25px;">
+        <div id="uploadProgress" class="progress-bar bg-success" style="width: 0%">
+            0%
+        </div>
     </div>
 
-    <!-- Info Section -->
-    <div class="mt-5">
-        <h5>📊 What You Will Get</h5>
-        <ul class="list-unstyled text-light">
-            <li>✔ Object tracking with unique IDs</li>
-            <li>✔ Performance metrics (FPS, detection time)</li>
-            <li>✔ Graph-based analysis of processing time</li>
-            <li>✔ Downloadable logs and outputs</li>
-        </ul>
-    </div>
+    <button type="submit" class="btn btn-warning w-100 mt-3">
+        ⚙️ Start Processing
+    </button>
+
+</form>
+```
+
+</div>
+
+<script>
+const input = document.getElementById("videoInput");
+const fileList = document.getElementById("fileList");
+const fileCount = document.getElementById("fileCount");
+const progressBar = document.getElementById("uploadProgress");
+const form = document.getElementById("uploadForm");
+
+// Convert bytes → MB
+function formatSize(bytes) {
+    return (bytes / (1024 * 1024)).toFixed(2) + " MB";
+}
+
+// Show file names + sizes
+input.addEventListener("change", function() {
+    fileList.innerHTML = "";
+
+    if (this.files.length === 0) {
+        fileCount.innerText = "";
+        return;
+    }
+
+    fileCount.innerText = `📦 ${this.files.length} file(s) selected`;
+
+    for (let file of this.files) {
+        const li = document.createElement("li");
+        li.innerText = `${file.name} (${formatSize(file.size)})`;
+        fileList.appendChild(li);
+    }
+});
+
+// Upload with progress
+form.addEventListener("submit", function(e) {
+    e.preventDefault();
+
+    const formData = new FormData(form);
+
+    const xhr = new XMLHttpRequest();
+
+    xhr.open("POST", "/upload", true);
+
+    xhr.upload.onprogress = function(e) {
+        if (e.lengthComputable) {
+            let percent = Math.round((e.loaded / e.total) * 100);
+            progressBar.style.width = percent + "%";
+            progressBar.innerText = percent + "%";
+        }
+    };
+
+    xhr.onload = function() {
+        if (xhr.status === 200) {
+            document.open();
+            document.write(xhr.responseText);
+            document.close();
+        }
+    };
+
+    xhr.send(formData);
+});
+</script>
+
+
+<script>
+document.getElementById("videoInput").addEventListener("change", function() {
+
+    const files = this.files;
+    const fileList = document.getElementById("fileList");
+    const fileCount = document.getElementById("fileCount");
+
+    fileList.innerHTML = "";
+
+    if (files.length === 0) {
+        fileCount.innerText = "";
+        return;
+    }
+
+    fileCount.innerText = `📦 ${files.length} file(s) selected`;
+
+    for (let i = 0; i < files.length; i++) {
+        const li = document.createElement("li");
+        li.innerText = files[i].name;
+        fileList.appendChild(li);
+    }
+});
+</script>
+
+
+<!-- Info Section -->
+<div class="mt-5">
+    <h5>📊 What Happens After Upload</h5>
+    <ul class="list-unstyled text-light">
+        <li>✔ Videos are added to processing queue (SQS)</li>
+        <li>✔ Background worker processes each video</li>
+        <li>✔ Results stored in AWS S3</li>
+        <li>✔ You can track status in real-time</li>
+    </ul>
+</div>
+```
+
 </div>
 
 </body>

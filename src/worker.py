@@ -27,6 +27,7 @@ BASE = os.getcwd()
 UP = os.path.join(BASE, "uploads")
 OUT = os.path.join(BASE, "output")
 JOB = os.path.join(BASE, "jobs")
+
 MODEL_YOLO = os.path.join(BASE, "models", "yolov10n.onnx")
 MODEL_REID = os.path.join(BASE, "models", "reid.onnx")
 
@@ -40,7 +41,6 @@ os.makedirs(JOB, exist_ok=True)
 s3 = boto3.client("s3", region_name=AWS_REGION)
 sqs = boto3.client("sqs", region_name=AWS_REGION)
 sns = boto3.client("sns", region_name=AWS_REGION)
-cw = boto3.client("cloudwatch", region_name=AWS_REGION)
 logs = boto3.client("logs", region_name=AWS_REGION)
 
 # -------------------------------
@@ -70,18 +70,35 @@ if not logger.handlers:
 # -------------------------------
 # Helpers
 # -------------------------------
-def save(job_id, status, msg="", outv=None):
-    with open(os.path.join(JOB, f"{job_id}.json"), "w") as f:
-        json.dump({
-            "job_id": job_id,
-            "status": status,
-            "message": msg,
-            "output_video": outv
-        }, f)
+def job_path(job_id):
+    return os.path.join(JOB, f"{job_id}.json")
+
+def update_job(job_id, status, msg="", progress=0, output=None):
+    data = {
+        "job_id": job_id,
+        "status": status,
+        "message": msg,
+        "progress": progress,
+        "output_video": output
+    }
+    with open(job_path(job_id), "w") as f:
+        json.dump(data, f)
+
+def update_progress(job_id, percent, message="Processing"):
+    path = job_path(job_id)
+    if os.path.exists(path):
+        with open(path, "r") as f:
+            data = json.load(f)
+
+        data["progress"] = percent
+        data["status"] = message
+
+        with open(path, "w") as f:
+            json.dump(data, f)
 
 def email(job_id, file, summary_text, output_video=None):
     try:
-        message = f"""Job {job_id} completed
+        msg = f"""Job {job_id} completed
 
 File: {file}
 
@@ -89,27 +106,22 @@ File: {file}
 {summary_text}
 """
         if output_video:
-            message += f"\nOutput file: {output_video}\n"
+            msg += f"\nOutput file: {output_video}\n"
 
         sns.publish(
             TopicArn=SNS_ARN,
             Subject="Video Processing Completed",
-            Message=message
+            Message=msg
         )
         logger.info(f"SNS email sent for {job_id}")
     except Exception as e:
-        logger.error(f"SNS failed for {job_id}: {e}")
+        logger.error(f"SNS failed: {e}")
 
 def find_files(job_id):
     output_video = None
     timings_file = None
-    debug_file = None
-    events_file = None
 
     for f in os.listdir(OUT):
-        full_path = os.path.join(OUT, f)
-        if not os.path.isfile(full_path):
-            continue
         if job_id not in f:
             continue
 
@@ -117,26 +129,19 @@ def find_files(job_id):
             output_video = f
         elif f.startswith("timings_"):
             timings_file = f
-        elif f.startswith("debug_log_"):
-            debug_file = f
-        elif f.startswith("serial_events_"):
-            events_file = f
 
-    return output_video, timings_file, debug_file, events_file
+    return output_video, timings_file
 
 def read_summary(timings_file):
     if not timings_file:
-        return "Summary file not found."
-
+        return "No summary available"
     path = os.path.join(OUT, timings_file)
     if not os.path.exists(path):
-        return "Summary file not found."
-
-    with open(path, "r") as f:
-        return f.read().strip()
+        return "No summary available"
+    return open(path).read()
 
 # -------------------------------
-# Loop
+# Worker Loop
 # -------------------------------
 while True:
     try:
@@ -155,39 +160,45 @@ while True:
         jid = body["job_id"]
         fname = body["filename"]
 
-        logger.info("Processing " + jid)
-        save(jid, "processing", "Running...")
+        logger.info(f"Processing {jid}")
+
+        update_job(jid, "Processing", "Started", 5)
 
         local_input = os.path.join(UP, fname)
         s3.download_file(S3_BUCKET, body["input_s3_key"], local_input)
 
-        result = subprocess.run(
+        update_progress(jid, 10, "Downloaded")
+
+        process = subprocess.Popen(
             [
-                "python",
+                "python3",
                 "src/yolo_deepsort.py",
                 local_input,
                 MODEL_YOLO,
                 MODEL_REID
             ],
-            capture_output=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
             text=True
         )
 
-        logger.info(result.stdout)
-        if result.stderr:
-            logger.error(result.stderr)
+        # Simulate progress while processing
+        progress = 10
+        for line in process.stdout:
+            logger.info(line.strip())
 
-        if result.returncode != 0:
-            save(jid, "failed", "Processing failed")
-            logger.error(f"Processing failed for {jid}")
+            progress = min(progress + 2, 90)
+            update_progress(jid, progress, "Processing")
+
+        process.wait()
+
+        if process.returncode != 0:
+            update_job(jid, "Failed", "Processing failed", progress)
             continue
 
-        output_video, timings_file, debug_file, events_file = find_files(jid)
-        logger.info(
-            f"Matched files for {jid}: "
-            f"output={output_video}, timings={timings_file}, "
-            f"debug={debug_file}, events={events_file}"
-        )
+        update_progress(jid, 95, "Uploading")
+
+        output_video, timings_file = find_files(jid)
 
         if output_video:
             s3.upload_file(
@@ -196,38 +207,18 @@ while True:
                 f"outputs/{jid}/{output_video}"
             )
 
-        if timings_file:
-            s3.upload_file(
-                os.path.join(OUT, timings_file),
-                S3_BUCKET,
-                f"logs/{jid}/{timings_file}"
-            )
+        summary = read_summary(timings_file)
 
-        if debug_file:
-            s3.upload_file(
-                os.path.join(OUT, debug_file),
-                S3_BUCKET,
-                f"logs/{jid}/{debug_file}"
-            )
+        update_job(jid, "Completed", "Done", 100, output_video)
 
-        if events_file:
-            s3.upload_file(
-                os.path.join(OUT, events_file),
-                S3_BUCKET,
-                f"logs/{jid}/{events_file}"
-            )
-
-        summary_text = read_summary(timings_file)
-
-        save(jid, "completed", "Done", output_video)
-        email(jid, fname, summary_text, output_video)
+        email(jid, fname, summary, output_video)
 
         sqs.delete_message(
             QueueUrl=SQS_URL,
             ReceiptHandle=m["ReceiptHandle"]
         )
 
-        logger.info(f"Completed job {jid}")
+        logger.info(f"Completed {jid}")
 
     except Exception as e:
         logger.exception(f"Worker error: {e}")
